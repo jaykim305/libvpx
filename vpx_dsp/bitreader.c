@@ -30,6 +30,12 @@ int vpx_reader_init(vpx_reader *r, const uint8_t *buffer, size_t size,
     r->range = 255;
     r->decrypt_cb = decrypt_cb;
     r->decrypt_state = decrypt_state;
+    printf("[vpx_reader_init] initializing vpx reader init\n");
+    r->mv_read_bits = 0;
+    r->tot_read_bits = 0;
+    r->tot_read_fills = 0;
+    r->tot_read_shifts = 0;
+    r->tot_read_counts = 0;
     vpx_reader_fill(r);
     return vpx_read_bit(r) != 0;  // marker bit
   }
@@ -42,9 +48,10 @@ void vpx_reader_fill(vpx_reader *r) {
   BD_VALUE value = r->value;
   int count = r->count;
   const size_t bytes_left = buffer_end - buffer;
+  // printf("[vpx_reader_fill] bytes left %d\n", bytes_left);
   const size_t bits_left = bytes_left * CHAR_BIT;
   int shift = BD_VALUE_SIZE - CHAR_BIT - (count + CHAR_BIT);
-
+  // this decrypt not active
   if (r->decrypt_cb) {
     size_t n = VPXMIN(sizeof(r->clear_buffer), bytes_left);
     r->decrypt_cb(r->decrypt_state, buffer, r->clear_buffer, (int)n);
@@ -88,6 +95,7 @@ void vpx_reader_fill(vpx_reader *r) {
   r->buffer += buffer - buffer_start;
   r->value = value;
   r->count = count;
+  r->tot_read_fills += buffer - buffer_start;
 }
 
 const uint8_t *vpx_reader_find_end(vpx_reader *r) {

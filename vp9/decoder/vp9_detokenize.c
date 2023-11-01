@@ -64,6 +64,8 @@ static INLINE int read_bool(vpx_reader *r, int prob, BD_VALUE *value,
       *range <<= shift;
       *value <<= shift;
       *count -= shift;
+      r->tot_read_shifts += shift;
+      r->tot_read_bits += shift;
     }
 #if CONFIG_BITSTREAM_DEBUG
     {
@@ -87,6 +89,8 @@ static INLINE int read_bool(vpx_reader *r, int prob, BD_VALUE *value,
     *range <<= shift;
     *value <<= shift;
     *count -= shift;
+    r->tot_read_shifts += shift;
+    r->tot_read_bits += shift;
   }
 #if CONFIG_BITSTREAM_DEBUG
   {

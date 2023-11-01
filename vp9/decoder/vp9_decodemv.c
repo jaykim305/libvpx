@@ -50,7 +50,7 @@ static PREDICTION_MODE read_intra_mode_uv(VP9_COMMON *cm, MACROBLOCKD *xd,
 static PREDICTION_MODE read_inter_mode(VP9_COMMON *cm, MACROBLOCKD *xd,
                                        vpx_reader *r, int ctx) {
   const int mode =
-      vpx_read_tree(r, vp9_inter_mode_tree, cm->fc->inter_mode_probs[ctx]);
+      vpx_read_tree_mv(r, vp9_inter_mode_tree, cm->fc->inter_mode_probs[ctx]);
   FRAME_COUNTS *counts = xd->counts;
   if (counts) ++counts->inter_mode[ctx][mode];
 
@@ -235,29 +235,29 @@ static void read_intra_frame_mode_info(VP9_COMMON *const cm,
 static int read_mv_component(vpx_reader *r, const nmv_component *mvcomp,
                              int usehp) {
   int mag, d, fr, hp;
-  const int sign = vpx_read(r, mvcomp->sign);
-  const int mv_class = vpx_read_tree(r, vp9_mv_class_tree, mvcomp->classes);
+  const int sign = vpx_read_mv(r, mvcomp->sign);
+  const int mv_class = vpx_read_tree_mv(r, vp9_mv_class_tree, mvcomp->classes);
   const int class0 = mv_class == MV_CLASS_0;
 
   // Integer part
   if (class0) {
-    d = vpx_read(r, mvcomp->class0[0]);
+    d = vpx_read_mv(r, mvcomp->class0[0]);
     mag = 0;
   } else {
     int i;
     const int n = mv_class + CLASS0_BITS - 1;  // number of bits
 
     d = 0;
-    for (i = 0; i < n; ++i) d |= vpx_read(r, mvcomp->bits[i]) << i;
+    for (i = 0; i < n; ++i) d |= vpx_read_mv(r, mvcomp->bits[i]) << i;
     mag = CLASS0_SIZE << (mv_class + 2);
   }
 
   // Fractional part
-  fr = vpx_read_tree(r, vp9_mv_fp_tree,
+  fr = vpx_read_tree_mv(r, vp9_mv_fp_tree,
                      class0 ? mvcomp->class0_fp[d] : mvcomp->fp);
 
   // High precision part (if hp is not used, the default value of the hp is 1)
-  hp = usehp ? vpx_read(r, class0 ? mvcomp->class0_hp : mvcomp->hp) : 1;
+  hp = usehp ? vpx_read_mv(r, class0 ? mvcomp->class0_hp : mvcomp->hp) : 1;
 
   // Result
   mag += ((d << 3) | (fr << 1) | hp) + 1;
@@ -268,7 +268,7 @@ static INLINE void read_mv(vpx_reader *r, MV *mv, const MV *ref,
                            const nmv_context *ctx, nmv_context_counts *counts,
                            int allow_hp) {
   const MV_JOINT_TYPE joint_type =
-      (MV_JOINT_TYPE)vpx_read_tree(r, vp9_mv_joint_tree, ctx->joints);
+      (MV_JOINT_TYPE)vpx_read_tree_mv(r, vp9_mv_joint_tree, ctx->joints);
   const int use_hp = allow_hp && use_mv_hp(ref);
   MV diff = { 0, 0 };
 
@@ -290,7 +290,7 @@ static REFERENCE_MODE read_block_reference_mode(VP9_COMMON *cm,
   if (cm->reference_mode == REFERENCE_MODE_SELECT) {
     const int ctx = vp9_get_reference_mode_context(cm, xd);
     const REFERENCE_MODE mode =
-        (REFERENCE_MODE)vpx_read(r, cm->fc->comp_inter_prob[ctx]);
+        (REFERENCE_MODE)vpx_read_mv(r, cm->fc->comp_inter_prob[ctx]);
     FRAME_COUNTS *counts = xd->counts;
     if (counts) ++counts->comp_inter[ctx][mode];
     return mode;  // SINGLE_REFERENCE or COMPOUND_REFERENCE
@@ -316,17 +316,17 @@ static void read_ref_frames(VP9_COMMON *const cm, MACROBLOCKD *const xd,
     if (mode == COMPOUND_REFERENCE) {
       const int idx = cm->ref_frame_sign_bias[cm->comp_fixed_ref];
       const int ctx = vp9_get_pred_context_comp_ref_p(cm, xd);
-      const int bit = vpx_read(r, fc->comp_ref_prob[ctx]);
+      const int bit = vpx_read_mv(r, fc->comp_ref_prob[ctx]);
       if (counts) ++counts->comp_ref[ctx][bit];
       ref_frame[idx] = cm->comp_fixed_ref;
       ref_frame[!idx] = cm->comp_var_ref[bit];
     } else if (mode == SINGLE_REFERENCE) {
       const int ctx0 = vp9_get_pred_context_single_ref_p1(xd);
-      const int bit0 = vpx_read(r, fc->single_ref_prob[ctx0][0]);
+      const int bit0 = vpx_read_mv(r, fc->single_ref_prob[ctx0][0]);
       if (counts) ++counts->single_ref[ctx0][0][bit0];
       if (bit0) {
         const int ctx1 = vp9_get_pred_context_single_ref_p2(xd);
-        const int bit1 = vpx_read(r, fc->single_ref_prob[ctx1][1]);
+        const int bit1 = vpx_read_mv(r, fc->single_ref_prob[ctx1][1]);
         if (counts) ++counts->single_ref[ctx1][1][bit1];
         ref_frame[0] = bit1 ? ALTREF_FRAME : GOLDEN_FRAME;
       } else {
@@ -413,6 +413,7 @@ static INLINE int assign_mv(VP9_COMMON *cm, MACROBLOCKD *xd,
       for (i = 0; i < 1 + is_compound; ++i) {
         read_mv(r, &mv[i].as_mv, &ref_mv[i].as_mv, &cm->fc->nmvc, mv_counts,
                 allow_hp);
+        // printf("[assign_mv] read mv, bits %d\n", r->mv_read_bits);
         ret = ret && is_mv_valid(&mv[i].as_mv);
       }
       break;
@@ -826,7 +827,8 @@ void vp9_read_mode_info(TileWorkerData *twd, VP9Decoder *const pbi, int mi_row,
     // are constant for the duration of the loop and avoids reloading them.
     MV_REFERENCE_FRAME mi_ref_frame[2];
     int_mv mi_mv[2];
-
+    
+    // printf("[vp9_read_mode_info] read inter frame mode info mi\n");
     read_inter_frame_mode_info(pbi, xd, mi_row, mi_col, r, x_mis, y_mis);
 
     copy_ref_frame_pair(mi_ref_frame, mi->ref_frame);

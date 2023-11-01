@@ -293,7 +293,7 @@ static vpx_codec_err_t vp8_decode(vpx_codec_alg_priv_t *ctx,
    */
   w = ctx->si.w;
   h = ctx->si.h;
-
+  printf("[vp8_decode] vp8 decoding size %d\n", data_sz);
   res = vp8_peek_si_internal(ctx->fragments.ptrs[0], ctx->fragments.sizes[0],
                              &ctx->si, ctx->decrypt_cb, ctx->decrypt_state);
 

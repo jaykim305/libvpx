@@ -892,6 +892,7 @@ int vp8_decode_frame(VP8D_COMP *pbi) {
 
   YV12_BUFFER_CONFIG *yv12_fb_new = pbi->dec_fb_ref[INTRA_FRAME];
 
+  printf("[vp8_decode_frame] decoding data_sz %d\n", data_sz);
   /* start with no corruption of current frame */
   xd->corrupted = 0;
   yv12_fb_new->corrupted = 0;
@@ -1166,6 +1167,14 @@ int vp8_decode_frame(VP8D_COMP *pbi) {
   xd->corrupted |= vp8dx_bool_error(bc);
   if (pbi->ec_active && xd->corrupted) pc->refresh_last_frame = 1;
 #endif
+
+  if (1) {
+    FILE *z = fopen("decodestats.stt", "a");
+    fprintf(z, "%6d F:%d,G:%d,A:%d,L:%d,Q:%d\n", pc->current_video_frame,
+            pc->frame_type, pc->refresh_golden_frame, pc->refresh_alt_ref_frame,
+            pc->refresh_last_frame, pc->base_qindex);
+    fclose(z);
+  }
 
   {
     pbi->independent_partitions = 1;

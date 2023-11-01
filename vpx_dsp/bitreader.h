@@ -47,6 +47,11 @@ typedef struct {
   vpx_decrypt_cb decrypt_cb;
   void *decrypt_state;
   uint8_t clear_buffer[sizeof(BD_VALUE) + 1];
+  size_t mv_read_bits;
+  size_t tot_read_bits;
+  size_t tot_read_shifts;
+  size_t tot_read_counts;
+  size_t tot_read_fills;
 } vpx_reader;
 
 int vpx_reader_init(vpx_reader *r, const uint8_t *buffer, size_t size,
@@ -72,6 +77,71 @@ static INLINE int vpx_reader_has_error(vpx_reader *r) {
   // 1 if we have tried to decode bits after the end of stream was encountered.
   // 0 No error.
   return r->count > BD_VALUE_SIZE && r->count < LOTS_OF_BITS;
+}
+
+static INLINE int vpx_read_mv(vpx_reader *r, int prob) {
+  unsigned int bit = 0;
+  BD_VALUE value;
+  BD_VALUE bigsplit;
+  int count;
+  unsigned int range;
+  unsigned int split = (r->range * prob + (256 - prob)) >> CHAR_BIT;
+
+  if (r->count < 0) vpx_reader_fill(r);
+
+  value = r->value;
+  count = r->count;
+
+  bigsplit = (BD_VALUE)split << (BD_VALUE_SIZE - CHAR_BIT);
+
+  range = split;
+
+  if (value >= bigsplit) {
+    range = r->range - split;
+    value = value - bigsplit;
+    bit = 1;
+  }
+
+  {
+    const unsigned char shift = vpx_norm[(unsigned char)range];
+    range <<= shift;
+    value <<= shift;
+    count -= shift;
+    r->mv_read_bits += shift;
+    r->tot_read_shifts += shift;
+    r->tot_read_bits += shift;    
+  }
+  r->value = value;
+  r->count = count;
+  r->range = range;
+
+#if CONFIG_BITSTREAM_DEBUG
+  {
+    const int queue_r = bitstream_queue_get_read();
+    const int frame_idx = bitstream_queue_get_frame_read();
+    int ref_result, ref_prob;
+    bitstream_queue_pop(&ref_result, &ref_prob);
+    if ((int)bit != ref_result) {
+      fprintf(stderr,
+              "\n *** [bit] result error, frame_idx_r %d bit %d ref_result %d "
+              "queue_r %d\n",
+              frame_idx, bit, ref_result, queue_r);
+
+      assert(0);
+    }
+    if (prob != ref_prob) {
+      fprintf(stderr,
+              "\n *** [bit] prob error, frame_idx_r %d prob %d ref_prob %d "
+              "queue_r %d\n",
+              frame_idx, prob, ref_prob, queue_r);
+
+      assert(0);
+    }
+  }
+#endif
+  // r->mv_read_bits += 1;
+  // r->tot_read_bits += 1;    
+  return bit;
 }
 
 static INLINE int vpx_read(vpx_reader *r, int prob) {
@@ -102,6 +172,8 @@ static INLINE int vpx_read(vpx_reader *r, int prob) {
     range <<= shift;
     value <<= shift;
     count -= shift;
+    r->tot_read_shifts += shift;
+    r->tot_read_bits += shift;
   }
   r->value = value;
   r->count = count;
@@ -132,6 +204,7 @@ static INLINE int vpx_read(vpx_reader *r, int prob) {
   }
 #endif
 
+  // r->tot_read_bits += 1;
   return bit;
 }
 
@@ -145,6 +218,15 @@ static INLINE int vpx_read_literal(vpx_reader *r, int bits) {
   for (bit = bits - 1; bit >= 0; bit--) literal |= vpx_read_bit(r) << bit;
 
   return literal;
+}
+
+static INLINE int vpx_read_tree_mv(vpx_reader *r, const vpx_tree_index *tree,
+                                const vpx_prob *probs) {
+  vpx_tree_index i = 0;
+
+  while ((i = tree[i + vpx_read_mv(r, probs[i >> 1])]) > 0) continue;
+
+  return -i;
 }
 
 static INLINE int vpx_read_tree(vpx_reader *r, const vpx_tree_index *tree,

@@ -391,6 +391,7 @@ static vpx_codec_err_t decoder_decode(vpx_codec_alg_priv_t *ctx,
     const uint8_t *const data_end = data + data_sz;
     while (data_start < data_end) {
       const uint32_t frame_size = (uint32_t)(data_end - data_start);
+      printf("[decoder_decode] decoding frame with size %d\n", frame_size);
       res = decode_one(ctx, &data_start, frame_size, user_priv, deadline);
       if (res != VPX_CODEC_OK) return res;
 

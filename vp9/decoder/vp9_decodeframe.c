@@ -95,6 +95,7 @@ static void read_switchable_interp_probs(FRAME_CONTEXT *fc, vpx_reader *r) {
 
 static void read_inter_mode_probs(FRAME_CONTEXT *fc, vpx_reader *r) {
   int i, j;
+  printf("[read_inter_mode_probs] diff update prob\n");
   for (i = 0; i < INTER_MODE_CONTEXTS; ++i)
     for (j = 0; j < INTER_MODES - 1; ++j)
       vp9_diff_update_prob(r, &fc->inter_mode_probs[i][j]);
@@ -132,13 +133,14 @@ static void read_frame_reference_mode_probs(VP9_COMMON *cm, vpx_reader *r) {
 
 static void update_mv_probs(vpx_prob *p, int n, vpx_reader *r) {
   int i;
+  // printf("[update_mv_probs] updating mv\n");
   for (i = 0; i < n; ++i)
     if (vpx_read(r, MV_UPDATE_PROB)) p[i] = (vpx_read_literal(r, 7) << 1) | 1;
 }
 
 static void read_mv_probs(nmv_context *ctx, int allow_hp, vpx_reader *r) {
   int i, j;
-
+  printf("[read_mv_probs] update mv probs\n");
   update_mv_probs(ctx->joints, MV_JOINTS - 1, r);
 
   for (i = 0; i < 2; ++i) {
@@ -938,6 +940,7 @@ static void decode_block(TileWorkerData *twd, VP9Decoder *const pbi, int mi_row,
 
   if (!is_inter_block(mi)) {
     int plane;
+    // printf("decoding intra? block\n");
     for (plane = 0; plane < MAX_MB_PLANE; ++plane) {
       const struct macroblockd_plane *const pd = &xd->plane[plane];
       const TX_SIZE tx_size = plane ? get_uv_tx_size(mi, pd) : mi->tx_size;
@@ -986,6 +989,7 @@ static void decode_block(TileWorkerData *twd, VP9Decoder *const pbi, int mi_row,
 
     // Reconstruction
     if (!mi->skip) {
+      // printf("decoding inter block\n");
       int eobtotal = 0;
       int plane;
 
@@ -2024,6 +2028,8 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
   int mi_row, mi_col;
   TileWorkerData *tile_data = NULL;
 
+  const uint8_t *data_start = data;
+
   if (cm->lf.filter_level && !cm->skip_loop_filter &&
       pbi->lf_worker.data1 == NULL) {
     CHECK_MEM_ERROR(&cm->error, pbi->lf_worker.data1,
@@ -2069,6 +2075,7 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
           cm->frame_parallel_decoding_mode ? NULL : &cm->counts;
       vp9_zero(tile_data->dqcoeff);
       vp9_tile_init(&tile_data->xd.tile, cm, tile_row, tile_col);
+      // printf("[decode_tiles] setup token decoder size %d\n", buf->size);
       setup_token_decoder(buf->data, data_end, buf->size, &cm->error,
                           &tile_data->bit_reader, pbi->decrypt_cb,
                           pbi->decrypt_state);
@@ -2111,6 +2118,7 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
             process_partition(tile_data, pbi, mi_row, mi_col, BLOCK_64X64, 4,
                               RECON, recon_block);
           } else {
+            // printf("[decode_tiles] decode partition mi_row %d, mi_col %d\n", mi_row, mi_col);
             decode_partition(tile_data, pbi, mi_row, mi_col, BLOCK_64X64, 4);
           }
         }
@@ -2150,6 +2158,29 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
     lf_data->stop = cm->mi_rows;
     winterface->execute(&pbi->lf_worker);
   }
+
+  int tot_mv_bits = 0;
+  int tot_read_bits = 0;
+  int tot_read_shifts = 0;
+  int tot_read_fills = 0;
+  // Load all tile information into tile_data.
+  for (tile_row = 0; tile_row < tile_rows; ++tile_row) {
+    for (tile_col = 0; tile_col < tile_cols; ++tile_col) {
+      tile_data = pbi->tile_worker_data + tile_cols * tile_row + tile_col;
+      tot_mv_bits += tile_data->bit_reader.mv_read_bits;
+      tot_read_bits += tile_data->bit_reader.tot_read_bits;
+      tot_read_shifts += tile_data->bit_reader.tot_read_shifts;
+      tot_read_fills += tile_data->bit_reader.tot_read_fills;
+      printf("[end decode_tiles] tile read mv bits %ld, tot %ld\n", tile_data->bit_reader.mv_read_bits, tile_data->bit_reader.tot_read_bits);      
+    }
+  }
+
+  printf("[end decode_tiles] total mv bytes [%d/%d], shifts %d, fills %d, out of size %ld\n",
+        (int)((double)tot_mv_bits/CHAR_BIT), 
+        (int)((double)tot_read_bits/CHAR_BIT),
+        (int)((double)tot_read_shifts/CHAR_BIT),
+        tot_read_fills,
+        data_end - data_start); 
 
   // Get last tile data.
   tile_data = pbi->tile_worker_data + tile_cols * tile_rows - 1;
@@ -2683,6 +2714,7 @@ static size_t read_uncompressed_header(VP9Decoder *pbi,
   cm->error_resilient_mode = vpx_rb_read_bit(rb);
 
   if (cm->frame_type == KEY_FRAME) {
+    printf("[read_uncompressed_header] KEYFRAME, show_frame %d\n", cm->show_frame);
     if (!vp9_read_sync_code(rb))
       vpx_internal_error(&cm->error, VPX_CODEC_UNSUP_BITSTREAM,
                          "Invalid frame sync code");
@@ -2708,6 +2740,7 @@ static size_t read_uncompressed_header(VP9Decoder *pbi,
         cm->error_resilient_mode ? 0 : vpx_rb_read_literal(rb, 2);
 
     if (cm->intra_only) {
+      printf("[read_uncompressed_header] INTERFRAME, intra only\n");
       if (!vp9_read_sync_code(rb))
         vpx_internal_error(&cm->error, VPX_CODEC_UNSUP_BITSTREAM,
                            "Invalid frame sync code");
@@ -2734,6 +2767,7 @@ static size_t read_uncompressed_header(VP9Decoder *pbi,
         pbi->need_resync = 0;
       }
     } else if (pbi->need_resync != 1) { /* Skip if need resync */
+      printf("[read_uncompressed_header] INTERFRAME, not intra only\n");
       pbi->refresh_frame_flags = vpx_rb_read_literal(rb, REF_FRAMES);
       for (i = 0; i < REFS_PER_FRAME; ++i) {
         const int ref = vpx_rb_read_literal(rb, REF_FRAMES_LOG2);
@@ -2961,6 +2995,7 @@ void vp9_decode_frame(VP9Decoder *pbi, const uint8_t *data,
   const int tile_rows = 1 << cm->log2_tile_rows;
   const int tile_cols = 1 << cm->log2_tile_cols;
   YV12_BUFFER_CONFIG *const new_fb = get_frame_new_buffer(cm);
+  uint8_t *data_start = data; // to track header, body size 
 #if CONFIG_BITSTREAM_DEBUG || CONFIG_MISMATCH_DEBUG
   bitstream_queue_set_frame_read(cm->current_video_frame * 2 + cm->show_frame);
 #endif
@@ -2976,6 +3011,8 @@ void vp9_decode_frame(VP9Decoder *pbi, const uint8_t *data,
   }
 
   data += vpx_rb_bytes_read(&rb);
+  // int residual_size = data_end - data_start;
+  // printf("[vp9_decode_frame] residual size %d\n", residual_size);
   if (!read_is_valid(data, first_partition_size, data_end))
     vpx_internal_error(&cm->error, VPX_CODEC_CORRUPT_FRAME,
                        "Truncated packet or corrupt header length");
@@ -3040,6 +3077,7 @@ void vp9_decode_frame(VP9Decoder *pbi, const uint8_t *data,
       }
     }
   } else {
+    printf("[vp9_decode_frame] decode tiles after first partition size %ld, reading size %ld\n", first_partition_size, (data_end - (data+first_partition_size)));
     *p_data_end = decode_tiles(pbi, data + first_partition_size, data_end);
   }
 
