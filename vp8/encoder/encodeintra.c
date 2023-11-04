@@ -127,8 +127,8 @@ void vp8_encode_intra16x16mbuv_my(MACROBLOCK *x) {
   int u, v;
   double u_, v_;
   unsigned char new_u, new_v;
-  unsigned char min_uv = 16;
-  unsigned char max_uv = 240;
+  unsigned char min_uv = 0;
+  unsigned char max_uv = 255;
 
 #if 1
   
@@ -137,8 +137,8 @@ void vp8_encode_intra16x16mbuv_my(MACROBLOCK *x) {
       u = (int) uptr_tracking[c];
       v = (int) vptr_tracking[c];
       
-      // assert(u >= min_uv && u <= 255);
-      // assert(v >= min_uv && v <= 255);
+      assert(u >= min_uv && u <= max_uv);
+      assert(v >= min_uv && v <= max_uv);
       // depth = u * 256 + v;
       u -= min_uv;
       v -= min_uv;

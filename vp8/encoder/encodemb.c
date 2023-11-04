@@ -51,10 +51,37 @@ void vp8_subtract_mbuv_my(short *diff, unsigned char *usrc, unsigned char *vsrc,
   short *udiff = diff + 256;
   short *vdiff = diff + 320;
 
-  vpx_subtract_block_my(8, 8, udiff, 8, usrc, src_stride, upred, pred_stride);
-  vpx_subtract_block_my(8, 8, vdiff, 8, vsrc, src_stride, vpred, pred_stride);
-  // vpx_subtract_block(8, 8, udiff, 8, usrc, src_stride, upred, pred_stride);
-  // vpx_subtract_block(8, 8, vdiff, 8, vsrc, src_stride, vpred, pred_stride);  
+  short *udiff_start = udiff;
+  short *vdiff_start = vdiff;
+
+  int16_t diff_u, diff_v;
+  int non_diff_cnt = 0;
+
+  // vpx_subtract_block_my(8, 8, udiff, 8, usrc, src_stride, upred, pred_stride);
+  // vpx_subtract_block_my(8, 8, vdiff, 8, vsrc, src_stride, vpred, pred_stride);
+  vpx_subtract_block(8, 8, udiff, 8, usrc, src_stride, upred, pred_stride);
+  vpx_subtract_block(8, 8, vdiff, 8, vsrc, src_stride, vpred, pred_stride);
+
+  int r, c;
+  for (r = 0; r < 8; r++) {
+    for (c = 0; c < 8; c++) {
+      // diff = src_ptr[c] - pred_ptr[c];
+      diff_u = udiff_start[c];
+      diff_v = vdiff_start[c];
+
+      if (abs(diff_u) > 100) non_diff_cnt += 1;
+      if (abs(diff_v) > 100) non_diff_cnt += 1;
+
+      udiff_start[c] = 0; 
+      vdiff_start[c] = 0;
+      // if (abs(diff) > 3) non_diff_cnt += 1;
+    }
+    udiff_start += 8;
+    vdiff_start += 8;
+  }
+
+  // printf("non diff cnt: %d/%d\n", non_diff_cnt, 8*8*2);
+
 }
 
 
