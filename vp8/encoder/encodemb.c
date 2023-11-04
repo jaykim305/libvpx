@@ -45,12 +45,30 @@ void vp8_subtract_mby(short *diff, unsigned char *src, int src_stride,
   vpx_subtract_block(16, 16, diff, 16, src, src_stride, pred, pred_stride);
 }
 
+void vp8_subtract_mbuv_my(short *diff, unsigned char *usrc, unsigned char *vsrc,
+                       int src_stride, unsigned char *upred,
+                       unsigned char *vpred, int pred_stride) {
+  short *udiff = diff + 256;
+  short *vdiff = diff + 320;
+
+  vpx_subtract_block_my(8, 8, udiff, 8, usrc, src_stride, upred, pred_stride);
+  vpx_subtract_block_my(8, 8, vdiff, 8, vsrc, src_stride, vpred, pred_stride);
+  // vpx_subtract_block(8, 8, udiff, 8, usrc, src_stride, upred, pred_stride);
+  // vpx_subtract_block(8, 8, vdiff, 8, vsrc, src_stride, vpred, pred_stride);  
+}
+
+
+// void depth_encode(unsigned char *usrc, unsigned char *vsrc)
+// {
+  
+// }
+
 static void vp8_subtract_mb(MACROBLOCK *x) {
   BLOCK *b = &x->block[0];
 
   vp8_subtract_mby(x->src_diff, *(b->base_src), b->src_stride,
                    x->e_mbd.dst.y_buffer, x->e_mbd.dst.y_stride);
-  vp8_subtract_mbuv(x->src_diff, x->src.u_buffer, x->src.v_buffer,
+  vp8_subtract_mbuv_my(x->src_diff, x->src.u_buffer, x->src.v_buffer,
                     x->src.uv_stride, x->e_mbd.dst.u_buffer,
                     x->e_mbd.dst.v_buffer, x->e_mbd.dst.uv_stride);
 }

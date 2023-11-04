@@ -9,6 +9,7 @@
  */
 
 #include <stdlib.h>
+#include <stdio.h>
 
 #include "./vpx_config.h"
 #include "./vpx_dsp_rtcd.h"
@@ -21,14 +22,43 @@ void vpx_subtract_block_c(int rows, int cols, int16_t *diff_ptr,
                           ptrdiff_t src_stride, const uint8_t *pred_ptr,
                           ptrdiff_t pred_stride) {
   int r, c;
+  int16_t diff;
+  int non_diff_cnt = 0;
 
   for (r = 0; r < rows; r++) {
-    for (c = 0; c < cols; c++) diff_ptr[c] = src_ptr[c] - pred_ptr[c];
+    for (c = 0; c < cols; c++) {
+      diff = src_ptr[c] - pred_ptr[c];
+      diff_ptr[c] = src_ptr[c] - pred_ptr[c];
+      // if (abs(diff) > 3) non_diff_cnt += 1;
+    }
 
     diff_ptr += diff_stride;
     pred_ptr += pred_stride;
     src_ptr += src_stride;
   }
+  // printf("non diff cnt: %d /%d\n", non_diff_cnt, rows*cols);
+}
+
+void vpx_subtract_block_c_my(int rows, int cols, int16_t *diff_ptr,
+                          ptrdiff_t diff_stride, const uint8_t *src_ptr,
+                          ptrdiff_t src_stride, const uint8_t *pred_ptr,
+                          ptrdiff_t pred_stride) {
+  int r, c;
+  int16_t diff;
+  int non_diff_cnt = 0;
+
+  for (r = 0; r < rows; r++) {
+    for (c = 0; c < cols; c++) {
+      // diff = src_ptr[c] - pred_ptr[c];
+      diff_ptr[c] = 0; //src_ptr[c] - pred_ptr[c];
+      // if (abs(diff) > 3) non_diff_cnt += 1;
+    }
+
+    diff_ptr += diff_stride;
+    pred_ptr += pred_stride;
+    src_ptr += src_stride;
+  }
+  // printf("non diff cnt: %d /%d\n", non_diff_cnt, rows*cols);
 }
 
 #if CONFIG_VP9_HIGHBITDEPTH

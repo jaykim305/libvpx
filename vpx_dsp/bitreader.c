@@ -36,6 +36,9 @@ int vpx_reader_init(vpx_reader *r, const uint8_t *buffer, size_t size,
     r->tot_read_fills = 0;
     r->tot_read_shifts = 0;
     r->tot_read_counts = 0;
+    r->curr_plane_type = -1;
+    r->yuv_read_bits[0] = 0;
+    r->yuv_read_bits[1] = 0;
     vpx_reader_fill(r);
     return vpx_read_bit(r) != 0;  // marker bit
   }

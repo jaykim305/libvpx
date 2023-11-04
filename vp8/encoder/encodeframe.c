@@ -1237,7 +1237,7 @@ int vp8cx_encode_inter_macroblock(VP8_COMP *cpi, MACROBLOCK *x, TOKENEXTRA **t,
   x->count_mb_ref_frame_usage[xd->mode_info_context->mbmi.ref_frame]++;
 
   if (xd->mode_info_context->mbmi.ref_frame == INTRA_FRAME) {
-    vp8_encode_intra16x16mbuv(x);
+    vp8_encode_intra16x16mbuv_my(x);
 
     if (xd->mode_info_context->mbmi.mode == B_PRED) {
       vp8_encode_intra4x4mby(x);
@@ -1252,9 +1252,13 @@ int vp8cx_encode_inter_macroblock(VP8_COMP *cpi, MACROBLOCK *x, TOKENEXTRA **t,
     if (xd->mode_info_context->mbmi.ref_frame == LAST_FRAME) {
       ref_fb_idx = cpi->common.lst_fb_idx;
     } else if (xd->mode_info_context->mbmi.ref_frame == GOLDEN_FRAME) {
-      ref_fb_idx = cpi->common.gld_fb_idx;
-    } else {
-      ref_fb_idx = cpi->common.alt_fb_idx;
+      ref_fb_idx = cpi->common.lst_fb_idx; //cpi->common.gld_fb_idx;
+    }
+    // else if (xd->mode_info_context->mbmi.ref_frame == ALTREF_FRAME) {
+    //   printf("here we go!\n");
+    // } 
+    else {
+      ref_fb_idx = cpi->common.lst_fb_idx; // cpi->common.alt_fb_idx;
     }
 
     xd->pre.y_buffer = cpi->common.yv12_fb[ref_fb_idx].y_buffer + recon_yoffset;

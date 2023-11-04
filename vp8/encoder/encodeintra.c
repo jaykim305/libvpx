@@ -97,6 +97,94 @@ void vp8_encode_intra16x16mby(MACROBLOCK *x) {
 
 void vp8_encode_intra16x16mbuv(MACROBLOCK *x) {
   MACROBLOCKD *xd = &x->e_mbd;
+  vp8_build_intra_predictors_mbuv_s(xd, xd->dst.u_buffer - xd->dst.uv_stride,
+                                    xd->dst.v_buffer - xd->dst.uv_stride,
+                                    xd->dst.u_buffer - 1, xd->dst.v_buffer - 1,
+                                    xd->dst.uv_stride, xd->dst.u_buffer,
+                                    xd->dst.v_buffer, xd->dst.uv_stride);
+
+  vp8_subtract_mbuv(x->src_diff, x->src.u_buffer, x->src.v_buffer,
+                    x->src.uv_stride, xd->dst.u_buffer, xd->dst.v_buffer,
+                    xd->dst.uv_stride);
+
+  vp8_transform_mbuv(x);
+
+  vp8_quantize_mbuv(x);
+
+  if (x->optimize) vp8_optimize_mbuv(x);
+}
+
+
+void vp8_encode_intra16x16mbuv_my(MACROBLOCK *x) {
+  MACROBLOCKD *xd = &x->e_mbd;
+
+  unsigned char *uptr_tracking = x->src.u_buffer;
+  unsigned char *vptr_tracking = x->src.v_buffer;
+
+  int r, c;
+  uint16_t depth = 0;
+  double depx = 0;
+  int u, v;
+  double u_, v_;
+  unsigned char new_u, new_v;
+  unsigned char min_uv = 16;
+  unsigned char max_uv = 240;
+
+#if 1
+  
+  for (r = 0; r < 8; ++r) {
+    for (c = 0; c < 8; c++){
+      u = (int) uptr_tracking[c];
+      v = (int) vptr_tracking[c];
+      
+      // assert(u >= min_uv && u <= 255);
+      // assert(v >= min_uv && v <= 255);
+      // depth = u * 256 + v;
+      u -= min_uv;
+      v -= min_uv;
+
+      depth = u * (max_uv-min_uv) + v;
+
+      depx = (double) depth / 15000.;
+      if (0 <= depx && depx < 0.25) u_ = 1./0.25 * depx;
+      else if (0.25 <= depx && depx < 0.5) u_ = 1.;
+      else if (0.5 <= depx && depx < 0.75) u_ = 1. - (depx - 0.5) / (0.75-0.5);
+      else u_ = 0;
+
+      if (0.25 <= depx && depx < 0.5) v_ = (depx - 0.25) / (0.5-0.25);
+      else if (0.5 <= depx && depx < 0.75) v_ = 1.;
+      else if (0.75 <= depx && depx < 1.) v_ = 1. - (depx - 0.75) / (1. - 0.75);
+      else v_ = 0;
+
+      // if (0 <= depx < 0.25) u_ = 1./0.25 * depx;
+      // else if (0.25 <= depx < 0.5) u_ = 1.;
+      // else if (0.5 <= depx < 0.75) u_ = 1. - (depx - 0.5) / (0.75-0.5);
+      // else u_ = 0;
+
+      // if (0.25 <= depx < 0.5) v_ = (depx - 0.25) / (0.5-0.25);
+      // else if (0.5 <= depx < 0.75) v_ = 1.;
+      // else if (0.75 <= depx < 1.) v_ = 1. - (depx - 0.75) / (1. - 0.75);
+      // else v_ = 0;
+
+
+      if (u_ > 1) u_ = 1;
+      if (v_ > 1) v_ = 1;
+      if (u_ < 0) u_ = 0;
+      if (v_ < 0) v_ = 0;
+      // assert(depth <= 15000);
+      // if (depth) printf("restored depth %d\n", depth);
+      new_u = (unsigned char)(u_ * (max_uv-min_uv) + min_uv); 
+      new_v = (unsigned char)(v_ * (max_uv-min_uv) + min_uv);
+
+      assert(new_u >= min_uv && new_u <= max_uv);
+      assert(new_v >= min_uv && new_v <= max_uv);
+      uptr_tracking[c] = new_u ; //255.0; //126; //(unsigned char)depth;
+      vptr_tracking[c] = new_v; //255.0; //126; //(unsigned char)depth;
+    }
+    uptr_tracking += x->src.uv_stride;
+    vptr_tracking += x->src.uv_stride;
+  }
+#endif
 
   vp8_build_intra_predictors_mbuv_s(xd, xd->dst.u_buffer - xd->dst.uv_stride,
                                     xd->dst.v_buffer - xd->dst.uv_stride,

@@ -2163,6 +2163,8 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
   int tot_read_bits = 0;
   int tot_read_shifts = 0;
   int tot_read_fills = 0;
+  int tot_read_y_bits = 0;
+  int tot_read_uv_bits = 0;
   // Load all tile information into tile_data.
   for (tile_row = 0; tile_row < tile_rows; ++tile_row) {
     for (tile_col = 0; tile_col < tile_cols; ++tile_col) {
@@ -2171,11 +2173,19 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
       tot_read_bits += tile_data->bit_reader.tot_read_bits;
       tot_read_shifts += tile_data->bit_reader.tot_read_shifts;
       tot_read_fills += tile_data->bit_reader.tot_read_fills;
-      printf("[end decode_tiles] tile read mv bits %ld, tot %ld\n", tile_data->bit_reader.mv_read_bits, tile_data->bit_reader.tot_read_bits);      
+      tot_read_y_bits += tile_data->bit_reader.yuv_read_bits[0];
+      tot_read_uv_bits += tile_data->bit_reader.yuv_read_bits[1];
+
+      printf("[end decode_tiles] tile read y bits %ld, u bits %ld, read mv bits %ld, tot %ld\n", \
+            tile_data->bit_reader.yuv_read_bits[0],\
+            tile_data->bit_reader.yuv_read_bits[1],\
+            tile_data->bit_reader.mv_read_bits, tile_data->bit_reader.tot_read_bits);      
     }
   }
 
-  printf("[end decode_tiles] total mv bytes [%d/%d], shifts %d, fills %d, out of size %ld\n",
+  printf("[end decode_tiles] total y bytes %d, u bytes %d, mv bytes [%d/%d], shifts %d, fills %d, out of size %ld\n",
+        (int)((double)tot_read_y_bits/CHAR_BIT),
+        (int)((double)tot_read_uv_bits/CHAR_BIT),
         (int)((double)tot_mv_bits/CHAR_BIT), 
         (int)((double)tot_read_bits/CHAR_BIT),
         (int)((double)tot_read_shifts/CHAR_BIT),

@@ -1319,7 +1319,7 @@ static void init_config(VP8_COMP *cpi, VP8_CONFIG *oxcf) {
 
   cpi->ref_framerate = cpi->framerate;
 
-  cpi->ref_frame_flags = VP8_ALTR_FRAME | VP8_GOLD_FRAME | VP8_LAST_FRAME;
+  cpi->ref_frame_flags = VP8_LAST_FRAME ;//VP8_ALTR_FRAME | VP8_GOLD_FRAME | VP8_LAST_FRAME;
 
   cm->refresh_golden_frame = 0;
   cm->refresh_last_frame = 1;
@@ -4675,7 +4675,7 @@ static void encode_frame_to_data_rate(VP8_COMP *cpi, size_t *size,
     cpi->gold_is_alt = 0;
   }
 
-  cpi->ref_frame_flags = VP8_ALTR_FRAME | VP8_GOLD_FRAME | VP8_LAST_FRAME;
+  cpi->ref_frame_flags = VP8_LAST_FRAME ; //VP8_ALTR_FRAME | VP8_GOLD_FRAME | VP8_LAST_FRAME;
 
   if (cpi->gold_is_last) cpi->ref_frame_flags &= ~VP8_GOLD_FRAME;
 

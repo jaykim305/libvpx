@@ -124,6 +124,7 @@ static vpx_image_t *img_alloc_helper(vpx_image_t *img, vpx_img_fmt_t fmt,
   img->x_chroma_shift = xcs;
   img->y_chroma_shift = ycs;
   img->bps = bps;
+  // img->range = VPX_CR_FULL_RANGE;
 
   /* Calculate strides */
   img->stride[VPX_PLANE_Y] = img->stride[VPX_PLANE_ALPHA] = stride_in_bytes;

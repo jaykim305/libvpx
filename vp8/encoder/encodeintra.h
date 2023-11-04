@@ -19,6 +19,7 @@ extern "C" {
 int vp8_encode_intra(MACROBLOCK *x, int use_dc_pred);
 void vp8_encode_intra16x16mby(MACROBLOCK *x);
 void vp8_encode_intra16x16mbuv(MACROBLOCK *x);
+void vp8_encode_intra16x16mbuv_my(MACROBLOCK *x);
 void vp8_encode_intra4x4mby(MACROBLOCK *mb);
 void vp8_encode_intra4x4block(MACROBLOCK *x, int ib);
 #ifdef __cplusplus
