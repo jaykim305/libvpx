@@ -49,6 +49,19 @@
 
 #define MAX_VP9_HEADER_SIZE 80
 
+const char *BITSTREAM_TYPE_STRINGS[] = {
+  "INTER_FMI",
+  "INTRA_FMI",
+  "INTER_BMI",
+  "INTRA_BMI",
+  "INTER_BLK",
+  "INTRA_BLK",
+  "COMPR_HDR",
+  "PARTITION",
+  "SETUP_TOKEN_DECODER",
+  "SKIP",
+  "UNKNOWN"
+};
 typedef int (*predict_recon_func)(TileWorkerData *twd, MODE_INFO *const mi,
                                   int plane, int row, int col, TX_SIZE tx_size);
 
@@ -941,6 +954,7 @@ static void decode_block(TileWorkerData *twd, VP9Decoder *const pbi, int mi_row,
   if (!is_inter_block(mi)) {
     int plane;
     // printf("decoding intra? block\n");
+    r->type = INTRA_BLOCK;
     for (plane = 0; plane < MAX_MB_PLANE; ++plane) {
       const struct macroblockd_plane *const pd = &xd->plane[plane];
       const TX_SIZE tx_size = plane ? get_uv_tx_size(mi, pd) : mi->tx_size;
@@ -966,6 +980,7 @@ static void decode_block(TileWorkerData *twd, VP9Decoder *const pbi, int mi_row,
                                               tx_size);
     }
   } else {
+    r->type = INTER_BLOCK;
     // Prediction
     dec_build_inter_predictors_sb(twd, pbi, xd, mi_row, mi_col);
 #if CONFIG_MISMATCH_DEBUG
@@ -1028,6 +1043,7 @@ static void decode_block(TileWorkerData *twd, VP9Decoder *const pbi, int mi_row,
   if (cm->lf.filter_level) {
     vp9_build_mask(cm, mi, mi_row, mi_col, bw, bh);
   }
+  r->type = UNKNOWN;
 }
 
 static void recon_block(TileWorkerData *twd, VP9Decoder *const pbi, int mi_row,
@@ -1156,7 +1172,7 @@ static PARTITION_TYPE read_partition(TileWorkerData *twd, int mi_row,
   FRAME_COUNTS *counts = twd->xd.counts;
   PARTITION_TYPE p;
   vpx_reader *r = &twd->bit_reader;
-
+  r->type = READ_PARTITION;
   if (has_rows && has_cols)
     p = (PARTITION_TYPE)vpx_read_tree(r, vp9_partition_tree, probs);
   else if (!has_rows && has_cols)
@@ -1167,7 +1183,7 @@ static PARTITION_TYPE read_partition(TileWorkerData *twd, int mi_row,
     p = PARTITION_SPLIT;
 
   if (counts) ++counts->partition[ctx][p];
-
+  r->type = UNKNOWN;
   return p;
 }
 
@@ -1308,9 +1324,12 @@ static void setup_token_decoder(const uint8_t *data, const uint8_t *data_end,
     vpx_internal_error(error_info, VPX_CODEC_CORRUPT_FRAME,
                        "Truncated packet or corrupt tile length");
 
-  if (vpx_reader_init(r, data, read_size, decrypt_cb, decrypt_state))
+  if (vpx_reader_init_track(r, data, read_size, decrypt_cb, decrypt_state, SETUP_TOKEN_DECODER))
     vpx_internal_error(error_info, VPX_CODEC_MEM_ERROR,
                        "Failed to allocate bool decoder %d", 1);
+
+  printf("vpx setup token decoder read bits %ld\n", r->tracked_bits[SETUP_TOKEN_DECODER]);
+  r->type = UNKNOWN;
 }
 
 static void read_coef_probs_common(vp9_coeff_probs_model *coef_probs,
@@ -1688,16 +1707,20 @@ static void get_tile_buffers(VP9Decoder *pbi, const uint8_t *data,
                              int tile_rows,
                              TileBuffer (*tile_buffers)[1 << 6]) {
   int r, c;
-
+  int tot_read = 0;
+  const uint8_t *data_start;
   for (r = 0; r < tile_rows; ++r) {
     for (c = 0; c < tile_cols; ++c) {
       const int is_last = (r == tile_rows - 1) && (c == tile_cols - 1);
       TileBuffer *const buf = &tile_buffers[r][c];
       buf->col = c;
+      data_start = data;
       get_tile_buffer(data_end, is_last, &pbi->common.error, &data,
                       pbi->decrypt_cb, pbi->decrypt_state, buf);
+      tot_read += buf->data - data_start;
     }
   }
+  printf("read tile buffer size %d\n", tot_read);
 }
 
 static void map_write(RowMTWorkerData *const row_mt_worker_data, int map_idx,
@@ -2163,6 +2186,9 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
   int tot_read_bits = 0;
   int tot_read_shifts = 0;
   int tot_read_fills = 0;
+  int tot_read_y_bits = 0;
+  int tot_read_uv_bits = 0;
+  size_t tot_bitstreams[BITSTREAM_TYPE_COUNT] = {0};  
   // Load all tile information into tile_data.
   for (tile_row = 0; tile_row < tile_rows; ++tile_row) {
     for (tile_col = 0; tile_col < tile_cols; ++tile_col) {
@@ -2171,17 +2197,46 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
       tot_read_bits += tile_data->bit_reader.tot_read_bits;
       tot_read_shifts += tile_data->bit_reader.tot_read_shifts;
       tot_read_fills += tile_data->bit_reader.tot_read_fills;
-      printf("[end decode_tiles] tile read mv bits %ld, tot %ld\n", tile_data->bit_reader.mv_read_bits, tile_data->bit_reader.tot_read_bits);      
+      tot_read_y_bits += tile_data->bit_reader.yuv_read_bits[0];
+      tot_read_uv_bits += tile_data->bit_reader.yuv_read_bits[1];
+
+      // printf("[end decode_tiles] tile read y bits %ld, u bits %ld, read mv bits %ld, tot %ld\n", \
+      //       tile_data->bit_reader.yuv_read_bits[0],\
+      //       tile_data->bit_reader.yuv_read_bits[1],\
+      //       tile_data->bit_reader.mv_read_bits, tile_data->bit_reader.tot_read_bits);
+      int i = 0;
+      for (i = 0; i < BITSTREAM_TYPE_COUNT; i++) {
+        // printf("[%s] read bits %ld\n", BITSTREAM_TYPE_STRINGS[i], tile_data->bit_reader.tracked_bits[i]);
+        tot_bitstreams[i] += tile_data->bit_reader.tracked_bits[i];
+      }
     }
   }
 
-  printf("[end decode_tiles] total mv bytes [%d/%d], shifts %d, fills %d, out of size %ld\n",
+  int tot_track_bits = 0;
+  int i = 0;
+  for (i = 0; i < BITSTREAM_TYPE_COUNT; i++) {
+    tot_track_bits += tot_bitstreams[i];
+  }
+  int expected_size = (data_end - data_start) * CHAR_BIT;
+
+  // assert(tot_track_bits + read_tile_buffers_size * CHAR_BIT == expected_size);
+
+  printf("[end frame] total y bytes %d, u bytes %d, mv bytes [%d/%d], shifts %d, fills %d, out of size %ld\n",
+        (int)((double)tot_read_y_bits/CHAR_BIT),
+        (int)((double)tot_read_uv_bits/CHAR_BIT),
         (int)((double)tot_mv_bits/CHAR_BIT), 
         (int)((double)tot_read_bits/CHAR_BIT),
         (int)((double)tot_read_shifts/CHAR_BIT),
         tot_read_fills,
         data_end - data_start); 
 
+  // int i=0;
+  for (i = 0; i < BITSTREAM_TYPE_COUNT; i++) {
+    printf("[%s] read bits %d\n", BITSTREAM_TYPE_STRINGS[i], tot_bitstreams[i]);
+    // printf("[%s] read bytes %d\n", BITSTREAM_TYPE_STRINGS[i], (int)((double)tot_bitstreams[i]/CHAR_BIT));
+  }
+
+  printf("total tracked bits %d, actual %d, diff %d\n", tot_track_bits, tot_read_shifts, tot_read_shifts-tot_track_bits);
   // Get last tile data.
   tile_data = pbi->tile_worker_data + tile_cols * tile_rows - 1;
 
@@ -2902,8 +2957,8 @@ static int read_compressed_header(VP9Decoder *pbi, const uint8_t *data,
   vpx_reader r;
   int k;
 
-  if (vpx_reader_init(&r, data, partition_size, pbi->decrypt_cb,
-                      pbi->decrypt_state))
+  if (vpx_reader_init_track(&r, data, partition_size, pbi->decrypt_cb,
+                      pbi->decrypt_state, COMPRESSED_HDR))
     vpx_internal_error(&cm->error, VPX_CODEC_MEM_ERROR,
                        "Failed to allocate bool decoder 0");
 
@@ -2940,6 +2995,8 @@ static int read_compressed_header(VP9Decoder *pbi, const uint8_t *data,
 
     read_mv_probs(nmvc, cm->allow_high_precision_mv, &r);
   }
+  printf("vpx compressed header read bits %ld\n", r.tracked_bits[COMPRESSED_HDR]);
+  r.type = UNKNOWN;
 
   return vpx_reader_has_error(&r);
 }

@@ -20,6 +20,7 @@
 #include "vpx/vp8dx.h"
 #include "vpx/vpx_integer.h"
 #include "vpx_dsp/prob.h"
+#include "vp9/common/vp9_enums.h"
 #if CONFIG_BITSTREAM_DEBUG
 #include "vpx_util/vpx_debug_util.h"
 #endif  // CONFIG_BITSTREAM_DEBUG
@@ -52,11 +53,17 @@ typedef struct {
   size_t tot_read_shifts;
   size_t tot_read_counts;
   size_t tot_read_fills;
+  PLANE_TYPE curr_plane_type;
+  size_t yuv_read_bits[2];
+
+  size_t tracked_bits[BITSTREAM_TYPE_COUNT];
+  BITSTREAM_TYPE type; 
 } vpx_reader;
 
 int vpx_reader_init(vpx_reader *r, const uint8_t *buffer, size_t size,
                     vpx_decrypt_cb decrypt_cb, void *decrypt_state);
-
+int vpx_reader_init_track(vpx_reader *r, const uint8_t *buffer, size_t size,
+                    vpx_decrypt_cb decrypt_cb, void *decrypt_state, BITSTREAM_TYPE type);
 void vpx_reader_fill(vpx_reader *r);
 
 const uint8_t *vpx_reader_find_end(vpx_reader *r);
@@ -109,7 +116,8 @@ static INLINE int vpx_read_mv(vpx_reader *r, int prob) {
     count -= shift;
     r->mv_read_bits += shift;
     r->tot_read_shifts += shift;
-    r->tot_read_bits += shift;    
+    r->tot_read_bits += shift;
+    r->tracked_bits[r->type] += shift;       
   }
   r->value = value;
   r->count = count;
@@ -174,6 +182,13 @@ static INLINE int vpx_read(vpx_reader *r, int prob) {
     count -= shift;
     r->tot_read_shifts += shift;
     r->tot_read_bits += shift;
+    if (r->curr_plane_type == PLANE_TYPE_Y ||  r->curr_plane_type == PLANE_TYPE_UV) {
+      r->yuv_read_bits[r->curr_plane_type] += shift;
+    }
+    r->tracked_bits[r->type] += shift;
+    // else {
+    //   printf("vpx read (not mv, not decode coef) bits %d\n", shift);
+    // }    
   }
   r->value = value;
   r->count = count;

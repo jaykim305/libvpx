@@ -181,10 +181,13 @@ static int read_skip(VP9_COMMON *cm, const MACROBLOCKD *xd, int segment_id,
   if (segfeature_active(&cm->seg, segment_id, SEG_LVL_SKIP)) {
     return 1;
   } else {
+    // BITSTREAM_TYPE original = r->type;
+    // r->type = SKIP;
     const int ctx = vp9_get_skip_context(xd);
     const int skip = vpx_read(r, cm->fc->skip_probs[ctx]);
     FRAME_COUNTS *counts = xd->counts;
     if (counts) ++counts->skip[ctx][skip];
+    // r->type = original;
     return skip;
   }
 }
@@ -800,10 +803,16 @@ static void read_inter_frame_mode_info(VP9Decoder *const pbi,
   inter_block = read_is_inter_block(cm, xd, mi->segment_id, r);
   mi->tx_size = read_tx_size(cm, xd, !mi->skip || !inter_block, r);
 
-  if (inter_block)
+  if (inter_block) {
+    r->type = INTER_BLOCK_MODE_INFO;
     read_inter_block_mode_info(pbi, xd, mi, mi_row, mi_col, r);
-  else
+    r->type = UNKNOWN;
+  }
+  else {
+    r->type = INTRA_BLOCK_MODE_INFO;
     read_intra_block_mode_info(cm, xd, mi, r);
+    r->type = UNKNOWN;
+  }
 }
 
 static INLINE void copy_ref_frame_pair(MV_REFERENCE_FRAME *dst,
@@ -821,7 +830,9 @@ void vp9_read_mode_info(TileWorkerData *twd, VP9Decoder *const pbi, int mi_row,
   int w, h;
 
   if (frame_is_intra_only(cm)) {
+    r->type = INTRA_FRAME_MODE_INFO;
     read_intra_frame_mode_info(cm, xd, mi_row, mi_col, r, x_mis, y_mis);
+    r->type = UNKNOWN;
   } else {
     // Cache mi->ref_frame and mi->mv so that the compiler can prove that they
     // are constant for the duration of the loop and avoids reloading them.
@@ -829,8 +840,9 @@ void vp9_read_mode_info(TileWorkerData *twd, VP9Decoder *const pbi, int mi_row,
     int_mv mi_mv[2];
     
     // printf("[vp9_read_mode_info] read inter frame mode info mi\n");
+    r->type = INTER_FRAME_MODE_INFO;
     read_inter_frame_mode_info(pbi, xd, mi_row, mi_col, r, x_mis, y_mis);
-
+    r->type = UNKNOWN;
     copy_ref_frame_pair(mi_ref_frame, mi->ref_frame);
     copy_mv_pair(mi_mv, mi->mv);
 

@@ -66,6 +66,9 @@ static INLINE int read_bool(vpx_reader *r, int prob, BD_VALUE *value,
       *count -= shift;
       r->tot_read_shifts += shift;
       r->tot_read_bits += shift;
+      if (r->curr_plane_type == PLANE_TYPE_Y ||  r->curr_plane_type == PLANE_TYPE_UV) 
+        r->yuv_read_bits[r->curr_plane_type] += shift;
+      r->tracked_bits[r->type] += shift;              
     }
 #if CONFIG_BITSTREAM_DEBUG
     {
@@ -91,6 +94,9 @@ static INLINE int read_bool(vpx_reader *r, int prob, BD_VALUE *value,
     *count -= shift;
     r->tot_read_shifts += shift;
     r->tot_read_bits += shift;
+    if (r->curr_plane_type == PLANE_TYPE_Y ||  r->curr_plane_type == PLANE_TYPE_UV) 
+      r->yuv_read_bits[r->curr_plane_type] += shift;
+    r->tracked_bits[r->type] += shift;
   }
 #if CONFIG_BITSTREAM_DEBUG
   {
@@ -289,6 +295,8 @@ int vp9_decode_block_tokens(TileWorkerData *twd, int plane, const ScanOrder *sc,
   int ctx_shift_a = 0;
   int ctx_shift_l = 0;
 
+  r->curr_plane_type = get_plane_type(plane);
+
   switch (tx_size) {
     case TX_4X4:
       ctx = a[0] != 0;
@@ -333,5 +341,7 @@ int vp9_decode_block_tokens(TileWorkerData *twd, int plane, const ScanOrder *sc,
       break;
   }
 
+  r->curr_plane_type = -1;
+  
   return eob;
 }
