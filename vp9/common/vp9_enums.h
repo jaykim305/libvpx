@@ -45,27 +45,48 @@ typedef enum BITSTREAM_PROFILE {
 
 
 typedef enum BITSTREAM_TYPE {
-  UNKNOWN = 0, 
-  INTER_FRAME_MODE_INFO = 1,
-  INTRA_FRAME_MODE_INFO = 2,
-  INTER_BLOCK_MODE_INFO = 3,
-  INTRA_BLOCK_MODE_INFO = 4,
-  INTER_BLOCK = 5,
-  INTRA_BLOCK = 6,
-  COMPRESSED_HDR = 7,
-  READ_PARTITION = 8, 
-  SETUP_TOKEN_DECODER = 9, 
-  INTER_SKIP = 10, 
-  INTER_SEGMENT_ID = 11,
-  IS_INTER_BLOCK = 12,
-  INTER_TX_SIZE = 13,
-  INTER_READ_REF_FRAME = 14, 
-  READ_INTER_MODE = 15,
-  ASSIGN_MV = 16,
-  READ_BLK_REF_MODE = 17,
-  READ_SWITCHABLE_FILTERS = 18, 
-  READ_INTRA_MODE_Y = 19,
-  READ_INTRA_MODE_UV = 20,
+  UNKNOWN,
+  // predictions
+  INTER_FRAME_MODE_INFO, 
+  INTRA_FRAME_MODE_INFO, 
+  // residual
+  INTER_BLOCK_RESIDU,
+  INTRA_BLOCK_RESIDU,
+
+  // misc, read when vpx_reader_init is called
+  COMPRESSED_HDR, 
+  READ_PARTITION, 
+  SETUP_TOKEN_DECODER, 
+  
+  // detail breakdown of reads
+  // read inside the intra frame mode info
+  // INTRA_SEGMENT_ID,
+  // INTRA_SKIP, 
+  // INTRA_TX_SIZE, 
+  // READ_INTRA_INTRA_MODE_Y,
+  // READ_INTRA_INTRA_MODE_UV,
+
+  // read inside the inter frame mode info
+  // INTER_SEGMENT_ID , //
+  // INTER_SKIP, 
+  // IS_INTER_BLOCK,
+  // INTER_TX_SIZE,
+
+  // read inside the frame mode infos
+  // INTER_BLOCK_MODE_INFO, 
+  // INTRA_BLOCK_MODE_INFO, 
+
+  // read inside the inter block mode info
+  // INTER_READ_REF_FRAME, 
+  // READ_INTER_MODE,
+  // ASSIGN_MV,
+  // READ_BLK_REF_MODE,
+  // READ_SWITCHABLE_FILTERS, 
+
+  // read inside the intra block mode info
+  // READ_INTER_INTRA_MODE_Y,
+  // READ_INTER_INTRA_MODE_UV,
+
   BITSTREAM_TYPE_COUNT
 } BITSTREAM_TYPE;
 

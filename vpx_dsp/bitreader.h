@@ -48,14 +48,14 @@ typedef struct {
   vpx_decrypt_cb decrypt_cb;
   void *decrypt_state;
   uint8_t clear_buffer[sizeof(BD_VALUE) + 1];
+
+  //jaehong: tracking bits
   size_t mv_read_bits;
-  size_t tot_read_bits;
   size_t tot_read_shifts;
-  size_t tot_read_counts;
   size_t tot_read_fills;
   PLANE_TYPE curr_plane_type;
-  size_t yuv_read_bits[2];
-
+  size_t yuv_read_bits[2]; // 0: Y, 1: UV
+  size_t tracked_bits_blk[2]; // 0: INTER_BLOCK, 1: INTRA_BLOCK
   size_t tracked_bits[BITSTREAM_TYPE_COUNT];
   BITSTREAM_TYPE type; 
 } vpx_reader;
@@ -120,7 +120,6 @@ static INLINE int vpx_read_mv(vpx_reader *r, int prob) {
     count -= shift;
     r->mv_read_bits += shift;
     r->tot_read_shifts += shift;
-    r->tot_read_bits += shift;
     r->tracked_bits[r->type] += shift;       
   }
   r->value = value;
@@ -151,8 +150,7 @@ static INLINE int vpx_read_mv(vpx_reader *r, int prob) {
     }
   }
 #endif
-  // r->mv_read_bits += 1;
-  // r->tot_read_bits += 1;    
+
   return bit;
 }
 
@@ -164,13 +162,13 @@ static INLINE int vpx_read(vpx_reader *r, int prob) {
   unsigned int range;
   unsigned int split = (r->range * prob + (256 - prob)) >> CHAR_BIT;
 
-  if (r->type == INTER_READ_REF_FRAME ||\
+  /*if (r->type == INTER_READ_REF_FRAME ||\
       r->type == READ_INTER_MODE ||\
       r->type == ASSIGN_MV ||\
       r->type == READ_BLK_REF_MODE ||
       r->type == UNKNOWN) {
         assert(0);
-      }
+      } */
   if (r->count < 0) vpx_reader_fill(r);
 
   value = r->value;
@@ -192,7 +190,6 @@ static INLINE int vpx_read(vpx_reader *r, int prob) {
     value <<= shift;
     count -= shift;
     r->tot_read_shifts += shift;
-    r->tot_read_bits += shift;
     if (r->curr_plane_type == PLANE_TYPE_Y ||  r->curr_plane_type == PLANE_TYPE_UV) {
       r->yuv_read_bits[r->curr_plane_type] += shift;
     }
@@ -230,7 +227,6 @@ static INLINE int vpx_read(vpx_reader *r, int prob) {
   }
 #endif
 
-  // r->tot_read_bits += 1;
   return bit;
 }
 

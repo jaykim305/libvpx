@@ -30,35 +30,35 @@ static PREDICTION_MODE read_intra_mode(vpx_reader *r, const vpx_prob *p) {
 
 static PREDICTION_MODE read_intra_mode_y(VP9_COMMON *cm, MACROBLOCKD *xd,
                                          vpx_reader *r, int size_group) {
-  r->type = READ_INTRA_MODE_Y;                                          
+  // r->type = READ_INTRA_INTRA_MODE_Y;                                          
   const PREDICTION_MODE y_mode =
       read_intra_mode(r, cm->fc->y_mode_prob[size_group]);
   FRAME_COUNTS *counts = xd->counts;
   if (counts) ++counts->y_mode[size_group][y_mode];
-  r->type = UNKNOWN;
+  // r->type = UNKNOWN;
   return y_mode;
 }
 
 static PREDICTION_MODE read_intra_mode_uv(VP9_COMMON *cm, MACROBLOCKD *xd,
                                           vpx_reader *r,
                                           PREDICTION_MODE y_mode) {
-  r->type = READ_INTRA_MODE_UV;
+  // r->type = READ_INTRA_INTRA_MODE_UV;
   const PREDICTION_MODE uv_mode =
       read_intra_mode(r, cm->fc->uv_mode_prob[y_mode]);
   FRAME_COUNTS *counts = xd->counts;
   if (counts) ++counts->uv_mode[y_mode][uv_mode];
-  r->type = UNKNOWN;
+  // r->type = UNKNOWN;
   return uv_mode;
 }
 
 static PREDICTION_MODE read_inter_mode(VP9_COMMON *cm, MACROBLOCKD *xd,
                                        vpx_reader *r, int ctx) {
-  r->type = READ_INTER_MODE;                                          
+  // r->type = READ_INTER_MODE;                                          
   const int mode =
       vpx_read_tree_mv(r, vp9_inter_mode_tree, cm->fc->inter_mode_probs[ctx]);
   FRAME_COUNTS *counts = xd->counts;
   if (counts) ++counts->inter_mode[ctx][mode];
-  r->type = UNKNOWN;
+  // r->type = UNKNOWN;
   return NEARESTMV + mode;
 }
 
@@ -186,13 +186,10 @@ static int read_skip(VP9_COMMON *cm, const MACROBLOCKD *xd, int segment_id,
   if (segfeature_active(&cm->seg, segment_id, SEG_LVL_SKIP)) {
     return 1;
   } else {
-    // BITSTREAM_TYPE original = r->type;
-    // r->type = INTER_SKIP;
     const int ctx = vp9_get_skip_context(xd);
     const int skip = vpx_read(r, cm->fc->skip_probs[ctx]);
     FRAME_COUNTS *counts = xd->counts;
     if (counts) ++counts->skip[ctx][skip];
-    // r->type = original;
     return skip;
   }
 }
@@ -207,13 +204,23 @@ static void read_intra_frame_mode_info(VP9_COMMON *const cm,
   const BLOCK_SIZE bsize = mi->sb_type;
   int i;
   const int mi_offset = mi_row * cm->mi_cols + mi_col;
-
+  
+  // r->type = INTRA_SEGMENT_ID;
   mi->segment_id = read_intra_segment_id(cm, mi_offset, x_mis, y_mis, r);
+  // r->type = UNKNOWN;
+
+  // r->type = INTRA_SKIP;
   mi->skip = read_skip(cm, xd, mi->segment_id, r);
+  // r->type = UNKNOWN;  
+
+  // r->type = INTRA_TX_SIZE;
   mi->tx_size = read_tx_size(cm, xd, 1, r);
+  // r->type = UNKNOWN;
+
   mi->ref_frame[0] = INTRA_FRAME;
   mi->ref_frame[1] = NO_REF_FRAME;
 
+  // r->type = READ_INTRA_INTRA_MODE_Y;
   switch (bsize) {
     case BLOCK_4X4:
       for (i = 0; i < 4; ++i)
@@ -236,8 +243,9 @@ static void read_intra_frame_mode_info(VP9_COMMON *const cm,
     default:
       mi->mode = read_intra_mode(r, get_y_mode_probs(mi, above_mi, left_mi, 0));
   }
-
+  // r->type = READ_INTRA_INTRA_MODE_UV;
   mi->uv_mode = read_intra_mode(r, vp9_kf_uv_mode_prob[mi->mode]);
+  // r->type = UNKNOWN;
 }
 
 static int read_mv_component(vpx_reader *r, const nmv_component *mvcomp,
@@ -295,17 +303,17 @@ static INLINE void read_mv(vpx_reader *r, MV *mv, const MV *ref,
 static REFERENCE_MODE read_block_reference_mode(VP9_COMMON *cm,
                                                 const MACROBLOCKD *xd,
                                                 vpx_reader *r) {
-  r->type = READ_BLK_REF_MODE;
+  // r->type = READ_BLK_REF_MODE;
   if (cm->reference_mode == REFERENCE_MODE_SELECT) {
     const int ctx = vp9_get_reference_mode_context(cm, xd);
     const REFERENCE_MODE mode =
         (REFERENCE_MODE)vpx_read_mv(r, cm->fc->comp_inter_prob[ctx]);
     FRAME_COUNTS *counts = xd->counts;
     if (counts) ++counts->comp_inter[ctx][mode];
-    r->type = UNKNOWN;
+    // r->type = UNKNOWN;
     return mode;  // SINGLE_REFERENCE or COMPOUND_REFERENCE
   } else {
-    r->type = UNKNOWN;
+    // r->type = UNKNOWN;
     return cm->reference_mode;
   }
 }
@@ -317,14 +325,14 @@ static void read_ref_frames(VP9_COMMON *const cm, MACROBLOCKD *const xd,
   FRAME_CONTEXT *const fc = cm->fc;
   FRAME_COUNTS *counts = xd->counts;
 
-  r->type = INTER_READ_REF_FRAME;
+  // r->type = INTER_READ_REF_FRAME;
   if (segfeature_active(&cm->seg, segment_id, SEG_LVL_REF_FRAME)) {
     ref_frame[0] = (MV_REFERENCE_FRAME)get_segdata(&cm->seg, segment_id,
                                                    SEG_LVL_REF_FRAME);
     ref_frame[1] = NO_REF_FRAME;
   } else {
     const REFERENCE_MODE mode = read_block_reference_mode(cm, xd, r);
-    r->type = INTER_READ_REF_FRAME;
+    // r->type = INTER_READ_REF_FRAME;
     // FIXME(rbultje) I'm pretty sure this breaks segmentation ref frame coding
     if (mode == COMPOUND_REFERENCE) {
       const int idx = cm->ref_frame_sign_bias[cm->comp_fixed_ref];
@@ -351,7 +359,7 @@ static void read_ref_frames(VP9_COMMON *const cm, MACROBLOCKD *const xd,
       assert(0 && "Invalid prediction mode.");
     }
   }
-  r->type = UNKNOWN;
+  // r->type = UNKNOWN;
 }
 
 static INLINE INTERP_FILTER read_switchable_interp_filter(VP9_COMMON *const cm,
@@ -419,7 +427,7 @@ static INLINE int assign_mv(VP9_COMMON *cm, MACROBLOCKD *xd,
                             int is_compound, int allow_hp, vpx_reader *r) {
   int i;
   int ret = 1;
-  r->type = ASSIGN_MV;
+  // r->type = ASSIGN_MV;
   switch (mode) {
     case NEWMV: {
       FRAME_COUNTS *counts = xd->counts;
@@ -442,11 +450,11 @@ static INLINE int assign_mv(VP9_COMMON *cm, MACROBLOCKD *xd,
       break;
     }
     default: {
-      r->type = UNKNOWN;
+      // r->type = UNKNOWN;
       return 0;
     }
   }
-  r->type = UNKNOWN;
+  // r->type = UNKNOWN;
   return ret;
 }
 
@@ -732,11 +740,11 @@ static void read_inter_block_mode_info(VP9Decoder *const pbi,
     if (bsize >= BLOCK_8X8)
       mi->mode = read_inter_mode(cm, xd, r, inter_mode_ctx);
   }
-  r->type = READ_SWITCHABLE_FILTERS;
+  // r->type = READ_SWITCHABLE_FILTERS;
   mi->interp_filter = (cm->interp_filter == SWITCHABLE)
                           ? read_switchable_interp_filter(cm, xd, r)
                           : cm->interp_filter;
-  r->type = UNKNOWN;
+  // r->type = UNKNOWN;
   if (bsize < BLOCK_8X8) {
     const int num_4x4_w = 1 << xd->bmode_blocks_wl;
     const int num_4x4_h = 1 << xd->bmode_blocks_hl;
@@ -810,29 +818,29 @@ static void read_inter_frame_mode_info(VP9Decoder *const pbi,
   MODE_INFO *const mi = xd->mi[0];
   int inter_block;
   
-  r->type = INTER_SEGMENT_ID;
+  // r->type = INTER_SEGMENT_ID;
   mi->segment_id =
       read_inter_segment_id(cm, xd, mi_row, mi_col, r, x_mis, y_mis);
-  r->type = UNKNOWN;      
-  r->type = INTER_SKIP;
+  // r->type = UNKNOWN;      
+  // r->type = INTER_SKIP;
   mi->skip = read_skip(cm, xd, mi->segment_id, r);
-  r->type = UNKNOWN;
-  r->type = IS_INTER_BLOCK;
+  // r->type = UNKNOWN;
+  // r->type = IS_INTER_BLOCK;
   inter_block = read_is_inter_block(cm, xd, mi->segment_id, r);
-  r->type = UNKNOWN;  
-  r->type = INTER_TX_SIZE;
+  // r->type = UNKNOWN;  
+  // r->type = INTER_TX_SIZE;
   mi->tx_size = read_tx_size(cm, xd, !mi->skip || !inter_block, r);
-  r->type = UNKNOWN;
+  // r->type = UNKNOWN;
 
   if (inter_block) {
-    r->type = INTER_BLOCK_MODE_INFO;
+    // r->type = INTER_BLOCK_MODE_INFO;
     read_inter_block_mode_info(pbi, xd, mi, mi_row, mi_col, r);
-    r->type = UNKNOWN;
+    // r->type = UNKNOWN;
   }
   else {
-    r->type = INTRA_BLOCK_MODE_INFO;
+    // r->type = INTRA_BLOCK_MODE_INFO;
     read_intra_block_mode_info(cm, xd, mi, r);
-    r->type = UNKNOWN;
+    // r->type = UNKNOWN;
   }
 }
 

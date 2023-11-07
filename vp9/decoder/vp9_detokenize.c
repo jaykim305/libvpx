@@ -65,7 +65,6 @@ static INLINE int read_bool(vpx_reader *r, int prob, BD_VALUE *value,
       *value <<= shift;
       *count -= shift;
       r->tot_read_shifts += shift;
-      r->tot_read_bits += shift;
       if (r->curr_plane_type == PLANE_TYPE_Y ||  r->curr_plane_type == PLANE_TYPE_UV) 
         r->yuv_read_bits[r->curr_plane_type] += shift;
       r->tracked_bits[r->type] += shift;              
@@ -93,7 +92,6 @@ static INLINE int read_bool(vpx_reader *r, int prob, BD_VALUE *value,
     *value <<= shift;
     *count -= shift;
     r->tot_read_shifts += shift;
-    r->tot_read_bits += shift;
     if (r->curr_plane_type == PLANE_TYPE_Y ||  r->curr_plane_type == PLANE_TYPE_UV) 
       r->yuv_read_bits[r->curr_plane_type] += shift;
     r->tracked_bits[r->type] += shift;

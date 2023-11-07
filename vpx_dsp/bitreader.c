@@ -30,12 +30,10 @@ int vpx_reader_init(vpx_reader *r, const uint8_t *buffer, size_t size,
     r->range = 255;
     r->decrypt_cb = decrypt_cb;
     r->decrypt_state = decrypt_state;
-    printf("[vpx_reader_init] initializing vpx reader init\n");
+    // printf("[vpx_reader_init] initializing vpx reader init\n");
     r->mv_read_bits = 0;
-    r->tot_read_bits = 0;
     r->tot_read_fills = 0;
     r->tot_read_shifts = 0;
-    r->tot_read_counts = 0;
     r->curr_plane_type = -1;
     r->yuv_read_bits[0] = 0;
     r->yuv_read_bits[1] = 0;
@@ -44,6 +42,8 @@ int vpx_reader_init(vpx_reader *r, const uint8_t *buffer, size_t size,
     for (i = 0; i < BITSTREAM_TYPE_COUNT; i++) {
       r->tracked_bits[i] = 0;
     }
+    r->tracked_bits_blk[0] = 0;
+    r->tracked_bits_blk[1] = 0;    
     vpx_reader_fill(r);
     return vpx_read_bit(r) != 0;  // marker bit
   }
@@ -61,12 +61,10 @@ int vpx_reader_init_track(vpx_reader *r, const uint8_t *buffer, size_t size,
     r->range = 255;
     r->decrypt_cb = decrypt_cb;
     r->decrypt_state = decrypt_state;
-    printf("[vpx_reader_init] initializing vpx reader init for %s\n", BITSTREAM_TYPE_STRINGS[type]);
+    // printf("[vpx_reader_init] initializing vpx reader init for %s\n", BITSTREAM_TYPE_STRINGS[type]);
     r->mv_read_bits = 0;
-    r->tot_read_bits = 0;
     r->tot_read_fills = 0;
     r->tot_read_shifts = 0;
-    r->tot_read_counts = 0;
     r->curr_plane_type = -1;
     r->yuv_read_bits[0] = 0;
     r->yuv_read_bits[1] = 0;
@@ -78,6 +76,8 @@ int vpx_reader_init_track(vpx_reader *r, const uint8_t *buffer, size_t size,
       // }
       r->tracked_bits[i] = 0;
     }
+    r->tracked_bits_blk[0] = 0;
+    r->tracked_bits_blk[1] = 0;
     vpx_reader_fill(r);
     return vpx_read_bit(r) != 0;  // marker bit
   }

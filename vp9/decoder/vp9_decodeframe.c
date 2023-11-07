@@ -51,27 +51,31 @@
 
 const char *BITSTREAM_TYPE_STRINGS[] = {
   "UNKNOWN",
-  "INTER_FMI",
-  "INTRA_FMI",
-  "INTER_BMI",
-  "INTRA_BMI",
-  "INTER_BLK",
-  "INTRA_BLK",
-  "COMPR_HDR",
-  "PARTITION",
+  "INTER_FRAME_MODE_INFO",
+  "INTRA_FRAME_MODE_INFO",
+  "INTER_BLOCK_RESIDU",
+  "INTRA_BLOCK_RESIDU",
+  "COMPRESSED_HDR",
+  "READ_PARTITION",
   "SETUP_TOKEN_DECODER",
-
-  "INTER_SKIP",
-  "INTER_SEGMENT_ID",
-  "IS_INTER_BLOCK",
-  "INTER_TX_SIZE",
-  "INTER_READ_REF_FRAME",
-  "READ_INTER_MODE",
-  "ASSIGN_MV",
-  "READ_BLK_REF_MODE",
-  "READ_SWITCHABLE_FILTERS",
-  "READ_INTRA_MODE_Y",
-  "READ_INTRA_MODE_UV",
+  // "INTRA_SEGMENT_ID",
+  // "INTRA_SKIP",
+  // "INTRA_TX_SIZE",
+  // "READ_INTRA_INTRA_MODE_Y",
+  // "READ_INTRA_INTRA_MODE_UV",
+  // "INTER_SEGMENT_ID",
+  // "INTER_SKIP",
+  // "IS_INTER_BLOCK",
+  // "INTER_TX_SIZE",
+  // "INTER_BLOCK_MODE_INFO",
+  // "INTRA_BLOCK_MODE_INFO",
+  // "INTER_READ_REF_FRAME",
+  // "READ_INTER_MODE",
+  // "ASSIGN_MV",
+  // "READ_BLK_REF_MODE",
+  // "READ_SWITCHABLE_FILTERS",
+  // "READ_INTER_INTRA_MODE_Y",
+  // "READ_INTER_INTRA_MODE_UV",
 };
 
 typedef int (*predict_recon_func)(TileWorkerData *twd, MODE_INFO *const mi,
@@ -966,7 +970,7 @@ static void decode_block(TileWorkerData *twd, VP9Decoder *const pbi, int mi_row,
   if (!is_inter_block(mi)) {
     int plane;
     // printf("decoding intra? block\n");
-    r->type = INTRA_BLOCK;
+    r->type = INTRA_BLOCK_RESIDU;
     for (plane = 0; plane < MAX_MB_PLANE; ++plane) {
       const struct macroblockd_plane *const pd = &xd->plane[plane];
       const TX_SIZE tx_size = plane ? get_uv_tx_size(mi, pd) : mi->tx_size;
@@ -992,7 +996,7 @@ static void decode_block(TileWorkerData *twd, VP9Decoder *const pbi, int mi_row,
                                               tx_size);
     }
   } else {
-    r->type = INTER_BLOCK;
+    r->type = INTER_BLOCK_RESIDU; 
     // Prediction
     dec_build_inter_predictors_sb(twd, pbi, xd, mi_row, mi_col);
 #if CONFIG_MISMATCH_DEBUG
@@ -1055,6 +1059,13 @@ static void decode_block(TileWorkerData *twd, VP9Decoder *const pbi, int mi_row,
   if (cm->lf.filter_level) {
     vp9_build_mask(cm, mi, mi_row, mi_col, bw, bh);
   }
+
+  // int i;
+  // for (i = 0; i < BITSTREAM_TYPE_COUNT; ++i) {
+  //   r->tracked_bits_blk[r->type-3] += r->tracked_bits[i];
+  //   // r->tracked_bits[i] = 0;    
+  // }
+
   r->type = UNKNOWN;
 }
 
@@ -1340,7 +1351,7 @@ static void setup_token_decoder(const uint8_t *data, const uint8_t *data_end,
     vpx_internal_error(error_info, VPX_CODEC_MEM_ERROR,
                        "Failed to allocate bool decoder %d", 1);
 
-  printf("vpx setup token decoder read bits %ld\n", r->tracked_bits[SETUP_TOKEN_DECODER]);
+  // printf("vpx setup token decoder read bits %ld\n", r->tracked_bits[SETUP_TOKEN_DECODER]);
   r->type = UNKNOWN;
 }
 
@@ -1732,7 +1743,7 @@ static void get_tile_buffers(VP9Decoder *pbi, const uint8_t *data,
       tot_read += buf->data - data_start;
     }
   }
-  printf("read tile buffer size %d\n", tot_read);
+  // printf("read tile buffer size %d\n", tot_read);
 }
 
 static void map_write(RowMTWorkerData *const row_mt_worker_data, int map_idx,
@@ -2051,6 +2062,8 @@ static int row_decode_worker_hook(void *arg1, void *arg2) {
   return !corrupted;
 }
 
+static int frame_cnt = 0;
+
 static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
                                    const uint8_t *data_end) {
   VP9_COMMON *const cm = &pbi->common;
@@ -2194,61 +2207,72 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
     winterface->execute(&pbi->lf_worker);
   }
 
-  int tot_mv_bits = 0;
-  int tot_read_bits = 0;
-  int tot_read_shifts = 0;
-  int tot_read_fills = 0;
-  int tot_read_y_bits = 0;
-  int tot_read_uv_bits = 0;
+  //jaehong: tracking bits
+  int read_shifts = 0; // actual read bits. slighfly short (7-8 bytes) from total_fills 
+  int read_fills = 0; // actual byte (=data_end - data_start) - read bytes from get_tile_buffers() (see inside the function)
+  int mv_bits = 0; // inter block mode info read bits - switchable filters read bits 
+  int y_bits = 0;
+  int uv_bits = 0;
+  // int tot_tracked_bits_blk[2] = {0};
   size_t tot_bitstreams[BITSTREAM_TYPE_COUNT] = {0};
+  vpx_reader tile_r;
+  BITSTREAM_TYPE type;
+
   assert(sizeof(BITSTREAM_TYPE_STRINGS) == BITSTREAM_TYPE_COUNT * sizeof(char *));
   // Load all tile information into tile_data.
   for (tile_row = 0; tile_row < tile_rows; ++tile_row) {
     for (tile_col = 0; tile_col < tile_cols; ++tile_col) {
       tile_data = pbi->tile_worker_data + tile_cols * tile_row + tile_col;
-      tot_mv_bits += tile_data->bit_reader.mv_read_bits;
-      tot_read_bits += tile_data->bit_reader.tot_read_bits;
-      tot_read_shifts += tile_data->bit_reader.tot_read_shifts;
-      tot_read_fills += tile_data->bit_reader.tot_read_fills;
-      tot_read_y_bits += tile_data->bit_reader.yuv_read_bits[0];
-      tot_read_uv_bits += tile_data->bit_reader.yuv_read_bits[1];
+      tile_r = tile_data->bit_reader;
+      read_shifts += tile_r.tot_read_shifts;
+      read_fills += tile_r.tot_read_fills;
+      mv_bits += tile_r.mv_read_bits;
+      //read_fills += tile_data->bit_reader.tot_read_fills;
+      y_bits += tile_r.yuv_read_bits[0];
+      uv_bits += tile_r.yuv_read_bits[1];
+      
+      // printf("[end decode_tiles] tile read y bits %ld, u bits %ld, read mv bits %ld, tot %ld\n", \
+      //       tile_data->bit_reader.yuv_read_bits[0],\
+      //       tile_data->bit_reader.yuv_read_bits[1],\
 
-      printf("[end decode_tiles] tile read y bits %ld, u bits %ld, read mv bits %ld, tot %ld\n", \
-            tile_data->bit_reader.yuv_read_bits[0],\
-            tile_data->bit_reader.yuv_read_bits[1],\
-            tile_data->bit_reader.mv_read_bits, tile_data->bit_reader.tot_read_bits);
-      int i = 0;
-      for (i = 0; i < BITSTREAM_TYPE_COUNT; i++) {
-        printf("[%s] read bits %ld\n", BITSTREAM_TYPE_STRINGS[i], tile_data->bit_reader.tracked_bits[i]);
-        if (i == UNKNOWN) assert(tile_data->bit_reader.tracked_bits[i] == 0);
-        tot_bitstreams[i] += tile_data->bit_reader.tracked_bits[i];
+      for (type = 0; type < BITSTREAM_TYPE_COUNT; type++) {
+        // printf("[%s] read bits %ld\n", BITSTREAM_TYPE_STRINGS[i], tile_data->bit_reader.tracked_bits[i]);
+        if (type == UNKNOWN) assert(tile_data->bit_reader.tracked_bits[type] == 0);
+        tot_bitstreams[type] += tile_data->bit_reader.tracked_bits[type];
       }
+      // tot_tracked_bits_blk[0] += tile_data->bit_reader.tracked_bits_blk[0];
+      // tot_tracked_bits_blk[1] += tile_data->bit_reader.tracked_bits_blk[1];      
     }
   }
 
   int tot_track_bits = 0;
-  int i = 0;
-  for (i = 0; i < BITSTREAM_TYPE_COUNT; i++) {
-    tot_track_bits += tot_bitstreams[i];
+  for (type = 0; type < BITSTREAM_TYPE_COUNT; type++) {
+    tot_track_bits += tot_bitstreams[type];
   }
-  // int expected_size = (data_end - data_start) * CHAR_BIT;
 
-  printf("[end frame] total y bytes %d, u bytes %d, mv bytes [%d/%d], shifts %d, fills %d, out of size %ld\n",
-        (int)((double)tot_read_y_bits/CHAR_BIT),
-        (int)((double)tot_read_uv_bits/CHAR_BIT),
-        (int)((double)tot_mv_bits/CHAR_BIT), 
-        (int)((double)tot_read_bits/CHAR_BIT),
-        (int)((double)tot_read_shifts/CHAR_BIT),
-        tot_read_fills,
-        data_end - data_start); 
+  frame_cnt += 1;
+  printf("[frame %d info] total y bits %d, u bits %d, residual %d, mv bits %d\n",
+        frame_cnt, 
+        y_bits,
+        uv_bits,
+        y_bits + uv_bits,
+        mv_bits);
+  // printf("[end frame %d] total inter blk %d, intra blk %d\n", frame_cnt, tot_tracked_bits_blk[0], tot_tracked_bits_blk[1]);   
+  // printf("[end frame %d] total y bytes %d, u bytes %d, mv bytes [%d/%d], shifts %d, fills %d, out of size %ld\n",
+  //       frame_cnt, 
+  //       (int)((double)tot_read_y_bits/CHAR_BIT),
+  //       (int)((double)tot_read_uv_bits/CHAR_BIT),
+  //       (int)((double)tot_mv_bits/CHAR_BIT), 
+  //       (int)((double)tot_read_shifts/CHAR_BIT),
+  //       tot_read_fills,
+  //       data_end - data_start); 
 
-  // int i=0;
-  for (i = 0; i < BITSTREAM_TYPE_COUNT; i++) {
-    printf("[%s] read bits %d\n", BITSTREAM_TYPE_STRINGS[i], tot_bitstreams[i]);
+  for (type = 0; type < BITSTREAM_TYPE_COUNT; type++) {
+    printf("[%s] read bits %ld\n", BITSTREAM_TYPE_STRINGS[type], tot_bitstreams[type]);
     // printf("[%s] read bytes %d\n", BITSTREAM_TYPE_STRINGS[i], (int)((double)tot_bitstreams[i]/CHAR_BIT));
   }
 
-  printf("total tracked bits %d, actual %d, diff %d\n", tot_track_bits, tot_read_shifts, tot_read_shifts-tot_track_bits);
+  assert(read_shifts == tot_track_bits);
   // Get last tile data.
   tile_data = pbi->tile_worker_data + tile_cols * tile_rows - 1;
 
