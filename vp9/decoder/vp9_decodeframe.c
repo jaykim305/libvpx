@@ -2250,22 +2250,18 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
     tot_track_bits += tot_bitstreams[type];
   }
 
+  int prediction_bits = tot_bitstreams[READ_PARTITION] +
+                        tot_bitstreams[INTRA_FRAME_MODE_INFO] +
+                        tot_bitstreams[INTER_FRAME_MODE_INFO];
+  int residual_bits = tot_bitstreams[INTRA_BLOCK_RESIDU] +
+                      tot_bitstreams[INTER_BLOCK_RESIDU];
+
+  assert(residual_bits == (y_bits + uv_bits));
+  assert(prediction_bits == (read_shifts - residual_bits));
   frame_cnt += 1;
-  printf("[frame %d info] total y bits %d, u bits %d, residual %d, mv bits %d\n",
-        frame_cnt, 
-        y_bits,
-        uv_bits,
-        y_bits + uv_bits,
-        mv_bits);
-  // printf("[end frame %d] total inter blk %d, intra blk %d\n", frame_cnt, tot_tracked_bits_blk[0], tot_tracked_bits_blk[1]);   
-  // printf("[end frame %d] total y bytes %d, u bytes %d, mv bytes [%d/%d], shifts %d, fills %d, out of size %ld\n",
-  //       frame_cnt, 
-  //       (int)((double)tot_read_y_bits/CHAR_BIT),
-  //       (int)((double)tot_read_uv_bits/CHAR_BIT),
-  //       (int)((double)tot_mv_bits/CHAR_BIT), 
-  //       (int)((double)tot_read_shifts/CHAR_BIT),
-  //       tot_read_fills,
-  //       data_end - data_start); 
+  printf("[frame %ld info] residual bits %ld (y: %ld, uv: %ld), | prediction bits %ld (intra fmi: %ld, inter fmi %ld, mv: %ld)\n",\
+        frame_cnt, (y_bits+uv_bits), y_bits, uv_bits, \
+        prediction_bits, tot_bitstreams[INTRA_FRAME_MODE_INFO], tot_bitstreams[INTER_FRAME_MODE_INFO], mv_bits);
 
   for (type = 0; type < BITSTREAM_TYPE_COUNT; type++) {
     printf("[%s] read bits %ld\n", BITSTREAM_TYPE_STRINGS[type], tot_bitstreams[type]);

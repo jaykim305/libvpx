@@ -38,9 +38,9 @@ int vpx_reader_init(vpx_reader *r, const uint8_t *buffer, size_t size,
     r->yuv_read_bits[0] = 0;
     r->yuv_read_bits[1] = 0;
     r->type = UNKNOWN;
-    int i = 0;
-    for (i = 0; i < BITSTREAM_TYPE_COUNT; i++) {
-      r->tracked_bits[i] = 0;
+    BITSTREAM_TYPE type;
+    for (type = 0; type < BITSTREAM_TYPE_COUNT; type++) {
+      r->tracked_bits[type] = 0;
     }
     r->tracked_bits_blk[0] = 0;
     r->tracked_bits_blk[1] = 0;    
@@ -69,12 +69,9 @@ int vpx_reader_init_track(vpx_reader *r, const uint8_t *buffer, size_t size,
     r->yuv_read_bits[0] = 0;
     r->yuv_read_bits[1] = 0;
     r->type = type;
-    int i = 0;
-    for (i = 0; i < BITSTREAM_TYPE_COUNT; i++) {
-      // if (i == COMPRESSED_HDR && type != COMPRESSED_HDR) {
-      //   continue;
-      // }
-      r->tracked_bits[i] = 0;
+    BITSTREAM_TYPE type;
+    for (type = 0; type < BITSTREAM_TYPE_COUNT; type++) {
+      r->tracked_bits[type] = 0;
     }
     r->tracked_bits_blk[0] = 0;
     r->tracked_bits_blk[1] = 0;
