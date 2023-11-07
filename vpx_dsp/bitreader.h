@@ -94,6 +94,10 @@ static INLINE int vpx_read_mv(vpx_reader *r, int prob) {
   unsigned int range;
   unsigned int split = (r->range * prob + (256 - prob)) >> CHAR_BIT;
 
+  if (r->type == UNKNOWN) {
+        assert(0);
+      }
+
   if (r->count < 0) vpx_reader_fill(r);
 
   value = r->value;
@@ -160,6 +164,13 @@ static INLINE int vpx_read(vpx_reader *r, int prob) {
   unsigned int range;
   unsigned int split = (r->range * prob + (256 - prob)) >> CHAR_BIT;
 
+  if (r->type == INTER_READ_REF_FRAME ||\
+      r->type == READ_INTER_MODE ||\
+      r->type == ASSIGN_MV ||\
+      r->type == READ_BLK_REF_MODE ||
+      r->type == UNKNOWN) {
+        assert(0);
+      }
   if (r->count < 0) vpx_reader_fill(r);
 
   value = r->value;

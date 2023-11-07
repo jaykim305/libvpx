@@ -50,6 +50,7 @@
 #define MAX_VP9_HEADER_SIZE 80
 
 const char *BITSTREAM_TYPE_STRINGS[] = {
+  "UNKNOWN",
   "INTER_FMI",
   "INTRA_FMI",
   "INTER_BMI",
@@ -59,9 +60,20 @@ const char *BITSTREAM_TYPE_STRINGS[] = {
   "COMPR_HDR",
   "PARTITION",
   "SETUP_TOKEN_DECODER",
-  "SKIP",
-  "UNKNOWN"
+
+  "INTER_SKIP",
+  "INTER_SEGMENT_ID",
+  "IS_INTER_BLOCK",
+  "INTER_TX_SIZE",
+  "INTER_READ_REF_FRAME",
+  "READ_INTER_MODE",
+  "ASSIGN_MV",
+  "READ_BLK_REF_MODE",
+  "READ_SWITCHABLE_FILTERS",
+  "READ_INTRA_MODE_Y",
+  "READ_INTRA_MODE_UV",
 };
+
 typedef int (*predict_recon_func)(TileWorkerData *twd, MODE_INFO *const mi,
                                   int plane, int row, int col, TX_SIZE tx_size);
 
@@ -2188,7 +2200,8 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
   int tot_read_fills = 0;
   int tot_read_y_bits = 0;
   int tot_read_uv_bits = 0;
-  size_t tot_bitstreams[BITSTREAM_TYPE_COUNT] = {0};  
+  size_t tot_bitstreams[BITSTREAM_TYPE_COUNT] = {0};
+  assert(sizeof(BITSTREAM_TYPE_STRINGS) == BITSTREAM_TYPE_COUNT * sizeof(char *));
   // Load all tile information into tile_data.
   for (tile_row = 0; tile_row < tile_rows; ++tile_row) {
     for (tile_col = 0; tile_col < tile_cols; ++tile_col) {
@@ -2200,13 +2213,14 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
       tot_read_y_bits += tile_data->bit_reader.yuv_read_bits[0];
       tot_read_uv_bits += tile_data->bit_reader.yuv_read_bits[1];
 
-      // printf("[end decode_tiles] tile read y bits %ld, u bits %ld, read mv bits %ld, tot %ld\n", \
-      //       tile_data->bit_reader.yuv_read_bits[0],\
-      //       tile_data->bit_reader.yuv_read_bits[1],\
-      //       tile_data->bit_reader.mv_read_bits, tile_data->bit_reader.tot_read_bits);
+      printf("[end decode_tiles] tile read y bits %ld, u bits %ld, read mv bits %ld, tot %ld\n", \
+            tile_data->bit_reader.yuv_read_bits[0],\
+            tile_data->bit_reader.yuv_read_bits[1],\
+            tile_data->bit_reader.mv_read_bits, tile_data->bit_reader.tot_read_bits);
       int i = 0;
       for (i = 0; i < BITSTREAM_TYPE_COUNT; i++) {
-        // printf("[%s] read bits %ld\n", BITSTREAM_TYPE_STRINGS[i], tile_data->bit_reader.tracked_bits[i]);
+        printf("[%s] read bits %ld\n", BITSTREAM_TYPE_STRINGS[i], tile_data->bit_reader.tracked_bits[i]);
+        if (i == UNKNOWN) assert(tile_data->bit_reader.tracked_bits[i] == 0);
         tot_bitstreams[i] += tile_data->bit_reader.tracked_bits[i];
       }
     }
@@ -2217,9 +2231,7 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
   for (i = 0; i < BITSTREAM_TYPE_COUNT; i++) {
     tot_track_bits += tot_bitstreams[i];
   }
-  int expected_size = (data_end - data_start) * CHAR_BIT;
-
-  // assert(tot_track_bits + read_tile_buffers_size * CHAR_BIT == expected_size);
+  // int expected_size = (data_end - data_start) * CHAR_BIT;
 
   printf("[end frame] total y bytes %d, u bytes %d, mv bytes [%d/%d], shifts %d, fills %d, out of size %ld\n",
         (int)((double)tot_read_y_bits/CHAR_BIT),
