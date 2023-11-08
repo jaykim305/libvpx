@@ -65,8 +65,15 @@ static INLINE int read_bool(vpx_reader *r, int prob, BD_VALUE *value,
       *value <<= shift;
       *count -= shift;
       r->tot_read_shifts += shift;
-      if (r->curr_plane_type == PLANE_TYPE_Y ||  r->curr_plane_type == PLANE_TYPE_UV) 
-        r->yuv_read_bits[r->curr_plane_type] += shift;
+      if (r->curr_plane_type == PLANE_TYPE_Y ||  r->curr_plane_type == PLANE_TYPE_UV) {
+        if (r->type == INTER_FRAME_MODE_INFO || r->type == INTRA_FRAME_MODE_INFO) {
+          r->yuv_intra_mode_bits[r->curr_plane_type] += shift;
+        } else if (r->type == INTER_BLOCK_RESIDU || r->type == INTRA_BLOCK_RESIDU) {
+          r->yuv_residu_bits[r->curr_plane_type] += shift;
+        } else {
+          assert(0);
+        }
+      }
       r->tracked_bits[r->type] += shift;              
     }
 #if CONFIG_BITSTREAM_DEBUG
@@ -92,8 +99,15 @@ static INLINE int read_bool(vpx_reader *r, int prob, BD_VALUE *value,
     *value <<= shift;
     *count -= shift;
     r->tot_read_shifts += shift;
-    if (r->curr_plane_type == PLANE_TYPE_Y ||  r->curr_plane_type == PLANE_TYPE_UV) 
-      r->yuv_read_bits[r->curr_plane_type] += shift;
+    if (r->curr_plane_type == PLANE_TYPE_Y ||  r->curr_plane_type == PLANE_TYPE_UV) {
+      if (r->type == INTER_FRAME_MODE_INFO || r->type == INTRA_FRAME_MODE_INFO) {
+        r->yuv_intra_mode_bits[r->curr_plane_type] += shift;
+      } else if (r->type == INTER_BLOCK_RESIDU || r->type == INTRA_BLOCK_RESIDU) {
+        r->yuv_residu_bits[r->curr_plane_type] += shift;
+      } else {
+        assert(0);
+      }
+    }
     r->tracked_bits[r->type] += shift;
   }
 #if CONFIG_BITSTREAM_DEBUG

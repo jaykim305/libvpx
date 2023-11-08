@@ -35,8 +35,10 @@ int vpx_reader_init(vpx_reader *r, const uint8_t *buffer, size_t size,
     r->tot_read_fills = 0;
     r->tot_read_shifts = 0;
     r->curr_plane_type = -1;
-    r->yuv_read_bits[0] = 0;
-    r->yuv_read_bits[1] = 0;
+    r->yuv_residu_bits[0] = 0;
+    r->yuv_residu_bits[1] = 0;
+    r->yuv_intra_mode_bits[0] = 0;
+    r->yuv_intra_mode_bits[1] = 0;        
     r->type = UNKNOWN;
     BITSTREAM_TYPE type;
     for (type = 0; type < BITSTREAM_TYPE_COUNT; type++) {
@@ -66,8 +68,10 @@ int vpx_reader_init_track(vpx_reader *r, const uint8_t *buffer, size_t size,
     r->tot_read_fills = 0;
     r->tot_read_shifts = 0;
     r->curr_plane_type = -1;
-    r->yuv_read_bits[0] = 0;
-    r->yuv_read_bits[1] = 0;
+    r->yuv_residu_bits[0] = 0;
+    r->yuv_residu_bits[1] = 0;
+    r->yuv_intra_mode_bits[0] = 0;
+    r->yuv_intra_mode_bits[1] = 0;    
     r->type = type;
     BITSTREAM_TYPE type;
     for (type = 0; type < BITSTREAM_TYPE_COUNT; type++) {

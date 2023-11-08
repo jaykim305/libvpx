@@ -30,12 +30,14 @@ static PREDICTION_MODE read_intra_mode(vpx_reader *r, const vpx_prob *p) {
 
 static PREDICTION_MODE read_intra_mode_y(VP9_COMMON *cm, MACROBLOCKD *xd,
                                          vpx_reader *r, int size_group) {
-  // r->type = READ_INTRA_INTRA_MODE_Y;                                          
+  // r->type = READ_INTRA_INTRA_MODE_Y;
+  r->curr_plane_type = get_plane_type(0);                                          
   const PREDICTION_MODE y_mode =
       read_intra_mode(r, cm->fc->y_mode_prob[size_group]);
   FRAME_COUNTS *counts = xd->counts;
   if (counts) ++counts->y_mode[size_group][y_mode];
   // r->type = UNKNOWN;
+  r->curr_plane_type = -1;      
   return y_mode;
 }
 
@@ -43,11 +45,13 @@ static PREDICTION_MODE read_intra_mode_uv(VP9_COMMON *cm, MACROBLOCKD *xd,
                                           vpx_reader *r,
                                           PREDICTION_MODE y_mode) {
   // r->type = READ_INTRA_INTRA_MODE_UV;
+  r->curr_plane_type = get_plane_type(1);                                          
   const PREDICTION_MODE uv_mode =
       read_intra_mode(r, cm->fc->uv_mode_prob[y_mode]);
   FRAME_COUNTS *counts = xd->counts;
   if (counts) ++counts->uv_mode[y_mode][uv_mode];
   // r->type = UNKNOWN;
+  r->curr_plane_type = -1;      
   return uv_mode;
 }
 
@@ -220,7 +224,7 @@ static void read_intra_frame_mode_info(VP9_COMMON *const cm,
   mi->ref_frame[0] = INTRA_FRAME;
   mi->ref_frame[1] = NO_REF_FRAME;
 
-  // r->type = READ_INTRA_INTRA_MODE_Y;
+  r->curr_plane_type = get_plane_type(0); 
   switch (bsize) {
     case BLOCK_4X4:
       for (i = 0; i < 4; ++i)
@@ -243,9 +247,9 @@ static void read_intra_frame_mode_info(VP9_COMMON *const cm,
     default:
       mi->mode = read_intra_mode(r, get_y_mode_probs(mi, above_mi, left_mi, 0));
   }
-  // r->type = READ_INTRA_INTRA_MODE_UV;
+  r->curr_plane_type = get_plane_type(1); 
   mi->uv_mode = read_intra_mode(r, vp9_kf_uv_mode_prob[mi->mode]);
-  // r->type = UNKNOWN;
+  r->curr_plane_type = -1;
 }
 
 static int read_mv_component(vpx_reader *r, const nmv_component *mvcomp,

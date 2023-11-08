@@ -54,7 +54,8 @@ typedef struct {
   size_t tot_read_shifts;
   size_t tot_read_fills;
   PLANE_TYPE curr_plane_type;
-  size_t yuv_read_bits[2]; // 0: Y, 1: UV
+  size_t yuv_residu_bits[2]; // 0: Y, 1: UV
+  size_t yuv_intra_mode_bits[2]; // 0: Y, 1: UV
   size_t tracked_bits_blk[2]; // 0: INTER_BLOCK, 1: INTRA_BLOCK
   size_t tracked_bits[BITSTREAM_TYPE_COUNT];
   BITSTREAM_TYPE type; 
@@ -191,7 +192,13 @@ static INLINE int vpx_read(vpx_reader *r, int prob) {
     count -= shift;
     r->tot_read_shifts += shift;
     if (r->curr_plane_type == PLANE_TYPE_Y ||  r->curr_plane_type == PLANE_TYPE_UV) {
-      r->yuv_read_bits[r->curr_plane_type] += shift;
+      if (r->type == INTER_FRAME_MODE_INFO || r->type == INTRA_FRAME_MODE_INFO) {
+        r->yuv_intra_mode_bits[r->curr_plane_type] += shift;
+      } else if (r->type == INTER_BLOCK_RESIDU || r->type == INTRA_BLOCK_RESIDU) {
+        r->yuv_residu_bits[r->curr_plane_type] += shift;
+      } else {
+        assert(0);
+      }
     }
     r->tracked_bits[r->type] += shift;
     // else {

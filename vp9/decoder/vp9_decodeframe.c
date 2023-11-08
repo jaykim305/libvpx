@@ -2213,6 +2213,8 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
   int mv_bits = 0; // inter block mode info read bits - switchable filters read bits 
   int y_bits = 0;
   int uv_bits = 0;
+  int y_intra_mode_bits = 0;
+  int uv_intra_mode_bits = 0;
   // int tot_tracked_bits_blk[2] = {0};
   size_t tot_bitstreams[BITSTREAM_TYPE_COUNT] = {0};
   vpx_reader tile_r;
@@ -2228,9 +2230,11 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
       read_fills += tile_r.tot_read_fills;
       mv_bits += tile_r.mv_read_bits;
       //read_fills += tile_data->bit_reader.tot_read_fills;
-      y_bits += tile_r.yuv_read_bits[0];
-      uv_bits += tile_r.yuv_read_bits[1];
+      y_bits += tile_r.yuv_residu_bits[0];
+      uv_bits += tile_r.yuv_residu_bits[1];
       
+      y_intra_mode_bits += tile_r.yuv_intra_mode_bits[0];
+      uv_intra_mode_bits += tile_r.yuv_intra_mode_bits[1];
       // printf("[end decode_tiles] tile read y bits %ld, u bits %ld, read mv bits %ld, tot %ld\n", \
       //       tile_data->bit_reader.yuv_read_bits[0],\
       //       tile_data->bit_reader.yuv_read_bits[1],\
@@ -2259,9 +2263,10 @@ static const uint8_t *decode_tiles(VP9Decoder *pbi, const uint8_t *data,
   assert(residual_bits == (y_bits + uv_bits));
   assert(prediction_bits == (read_shifts - residual_bits));
   frame_cnt += 1;
-  printf("[frame %ld info] residual bits %ld (y: %ld, uv: %ld), | prediction bits %ld (intra fmi: %ld, inter fmi %ld, mv: %ld)\n",\
-        frame_cnt, (y_bits+uv_bits), y_bits, uv_bits, \
-        prediction_bits, tot_bitstreams[INTRA_FRAME_MODE_INFO], tot_bitstreams[INTER_FRAME_MODE_INFO], mv_bits);
+  printf("[frame %ld info] total bits: %d, residual: %d (y: %d, uv: %d), | prediction: %d (intra fmi: %d, inter fmi %d, mv: %d, y_intra: %d, uv_intra: %d)\n",\
+        frame_cnt, tot_track_bits, residual_bits, y_bits, uv_bits, \
+        prediction_bits, tot_bitstreams[INTRA_FRAME_MODE_INFO], tot_bitstreams[INTER_FRAME_MODE_INFO], mv_bits, \
+        y_intra_mode_bits, uv_intra_mode_bits);
 
   for (type = 0; type < BITSTREAM_TYPE_COUNT; type++) {
     printf("[%s] read bits %ld\n", BITSTREAM_TYPE_STRINGS[type], tot_bitstreams[type]);
