@@ -168,6 +168,10 @@ typedef struct VP8Common {
   struct postproc_state postproc_state;
 #endif
   int cpu_caps;
+
+  int frame_num;
+  int curr_block_row;
+  int curr_block_col;
 } VP8_COMMON;
 
 #ifdef __cplusplus

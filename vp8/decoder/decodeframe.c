@@ -876,6 +876,8 @@ static void init_frame(VP8D_COMP *pbi) {
   if (pc->full_pixel) xd->fullpixel_mask = ~7;
 }
 
+static int frame_num = 0;
+
 int vp8_decode_frame(VP8D_COMP *pbi) {
   vp8_reader *const bc = &pbi->mbc[8];
   VP8_COMMON *const pc = &pbi->common;
@@ -892,7 +894,9 @@ int vp8_decode_frame(VP8D_COMP *pbi) {
 
   YV12_BUFFER_CONFIG *yv12_fb_new = pbi->dec_fb_ref[INTRA_FRAME];
 
-  printf("[vp8_decode_frame] decoding data_sz %d\n", data_sz);
+  frame_num += 1;
+  pc->frame_num = frame_num;
+  printf("[vp8_decode_frame %d] decoding data_sz %d\n", pc->frame_num, data_sz);
   /* start with no corruption of current frame */
   xd->corrupted = 0;
   yv12_fb_new->corrupted = 0;

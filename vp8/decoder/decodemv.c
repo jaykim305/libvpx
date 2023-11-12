@@ -470,6 +470,15 @@ static void read_mb_modes_mv(VP8D_COMP *pbi, MODE_INFO *mi,
 
     mbmi->uv_mode = read_uv_mode(bc, pbi->common.fc.uv_mode_prob);
   }
+  MB_MODE_INFO current_mbmi = mi->mbmi;
+  // if (current_mbmi.mv.as_mv.row != 0 ||  current_mbmi.mv.as_mv.col != 0) 
+  // {
+  printf("frame num %d, mb_col %d, mb_row %d, mbmi mode %d, uv mode %d, ref_frame %d, mv row %d, col %d\n", \
+  pbi->common.frame_num,
+  pbi->common.curr_block_col, 
+  pbi->common.curr_block_row,
+  current_mbmi.mode, current_mbmi.uv_mode, current_mbmi.ref_frame, 
+  current_mbmi.mv.as_mv.row, current_mbmi.mv.as_mv.col);  
 }
 
 static void read_mb_features(vp8_reader *r, MB_MODE_INFO *mi, MACROBLOCKD *x) {
@@ -534,7 +543,10 @@ void vp8_decode_mode_mvs(VP8D_COMP *pbi) {
 #if CONFIG_ERROR_CONCEALMENT
       int mb_num = mb_row * pbi->common.mb_cols + mb_col;
 #endif
-
+      // if (pbi->common.frame_type != KEY_FRAME)
+      //   printf("[decode mode mvs] framenum %d, mb_row %d, mb_col %d\n", pbi->common.frame_num, mb_row, mb_col);
+      pbi->common.curr_block_col = mb_col;
+      pbi->common.curr_block_row = mb_row;
       decode_mb_mode_mvs(pbi, mi);
 
 #if CONFIG_ERROR_CONCEALMENT
